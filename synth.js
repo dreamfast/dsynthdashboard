@@ -18,8 +18,9 @@
 
 // Config object for API settings
 const CONFIG = {
-    API_BASE_URL: 'http://localhost', // Replace with actual API base URL
-    PORT: 8899, // Port number for the API, defaults to HTTPS if empty
+    API_BASE_URL: '', // Will default to 'https://ironman.dragonflybsd.org' if empty
+    PORT: '', // Will be omitted from the URL if empty, defaulting to HTTPS
+    PATH: '', // Will default to 'dports/logs/Report' if empty
     POLL_INTERVAL: 10000, // 10 seconds
     HTML_TITLE: 'DSynth Dashboard'
 };
@@ -33,6 +34,21 @@ let state = {
     currentStatus: 'queued',
     buildInProgress: false
 };
+
+
+/**
+ * Generates a URL based on the current configuration settings.
+ *
+ * @param {string} [endpoint=''] - The specific endpoint to append to the URL.
+ * @returns {string} The complete URL with the base URL, port (if specified), path, and endpoint.
+ *
+ */
+function generateUrl(endpoint = '') {
+    const baseUrl = CONFIG.API_BASE_URL || 'https://ironman.dragonflybsd.org';
+    const port = CONFIG.PORT ? `:${CONFIG.PORT}` : '';
+    const path = CONFIG.PATH || 'dports/logs/Report';
+    return `${baseUrl}${port}/${path}/${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
+}
 
 /**
  * Switches between tabs in the UI
@@ -200,7 +216,7 @@ const fetchWithRetry = async (url, retries = 3) => {
  * Fetches the summary data from the API
  * @returns {Promise} Resolved with summary data
  */
-const fetchSummary = () => fetchWithRetry(`${CONFIG.API_BASE_URL}:${CONFIG.PORT}/dports/logs/Report/summary.json`);
+const fetchSummary = () => fetchWithRetry(generateUrl('summary.json'));
 
 /**
  * Fetches history data from the API
@@ -210,7 +226,7 @@ const fetchSummary = () => fetchWithRetry(`${CONFIG.API_BASE_URL}:${CONFIG.PORT}
 const fetchHistory = async (kFiles) => {
     const fetchPromises = Array.from({ length: kFiles }, (_, i) => {
         const fileName = String(i + 1).padStart(2, '0') + '_history.json';
-        return fetchWithRetry(`${CONFIG.API_BASE_URL}:${CONFIG.PORT}/dports/logs/Report/${fileName}`);
+        return fetchWithRetry(generateUrl(fileName));
     });
     return Promise.all(fetchPromises);
 };
@@ -536,7 +552,7 @@ function skipInfo(result, info) {
  */
 function logFile(origin) {
     const [category, name] = origin.split('/');
-    return `../${category}___${name}.log`;
+    return generateUrl(`../${category}___${name}.log`);
 }
 
 /**
