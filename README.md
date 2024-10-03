@@ -56,10 +56,6 @@ A precompiled CSS file is provided. However, if you are developing with Tailwind
 
 This command will watch for changes in the `index.html` and `synth.js` files and output the compiled CSS to `style.css`. Remove the `--watch` argument if you just want to compile the file once.
 
-## Contributing
-
-Contributions to improve the DSynth Dashboard are welcome. Please ensure that any changes maintain the project's commitment to using vanilla JavaScript and TailwindCSS.
-
 ## License
 
-This project is licensed under the ISC License. See the LICENSE file for details.
+This project is licensed under the MIT License. See the LICENSE file for details.
