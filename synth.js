@@ -18,8 +18,8 @@
 
 // Config object for API settings
 const CONFIG = {
-    API_BASE_URL: '', // Will default to 'https://ironman.dragonflybsd.org' if empty
-    PORT: '', // Will be omitted from the URL if empty, defaulting to HTTPS
+    API_BASE_URL: 'http://localhost', // Will default to 'https://ironman.dragonflybsd.org' if empty
+    PORT: 8899, // Will be omitted from the URL if empty, defaulting to HTTPS
     PATH: '', // Will default to 'dports/logs/Report' if empty
     POLL_INTERVAL: 10000, // 10 seconds
     HTML_TITLE: 'DSynth Dashboard'
@@ -280,22 +280,6 @@ const processHistory = (historyData) => {
     const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
     updateBuildReportTable(filteredAndSortedHistory);
 
-    // Add event listeners for expanding/collapsing information
-    document.querySelectorAll('.info-text').forEach(span => {
-        span.addEventListener('click', function() {
-            const fullText = this.getAttribute('data-full');
-            if (this.classList.contains('truncate')) {
-                this.textContent = fullText;
-                this.classList.remove('truncate');
-                this.classList.add('whitespace-normal', 'break-words');
-            } else {
-                this.textContent = truncateText(fullText, 255);
-                this.classList.add('truncate');
-                this.classList.remove('whitespace-normal', 'break-words');
-            }
-        });
-    });
-
     // Update sort icon
     updateSortIcon();
 
@@ -463,29 +447,29 @@ function updateBuildReportTable(filteredAndSortedHistory) {
 
     reportBody.innerHTML = '';
     reportBody.appendChild(fragment);
+
+    // Reapply event listeners for expanding/collapsing information
+    applyInfoTextListeners();
 }
 
-
 /**
- * Creates a table row for a build history item
- * @param {Object} item - The build history item
- * @param {number} index - The row index
- * @returns {HTMLTableRowElement} The created table row
+ * Applies event listeners to info-text elements for expanding/collapsing
  */
-function createTableRow(item, index) {
-    const row = document.createElement('tr');
-    row.className = `${getRowClass(item.result)}`;
-    row.innerHTML = `
-        <td class="p-2">${index}</td>
-        <td class="p-2">${item.elapsed}</td>
-        <td class="p-2">[${item.ID}]</td>
-        <td class="p-2"><span class="inline-block px-2 py-1 text-xs font-bold text-white ${getResultClass(item.result)} rounded">${item.result}</span></td>
-        <td class="p-2">${portsMon(item.origin)}</td>
-        <td class="p-2 relative">${information(item.result, item.origin, item.info)}</td>
-        <td class="p-2">${skipInfo(item.result, item.info)}</td>
-        <td class="p-2">${item.duration}</td>
-    `;
-    return row;
+function applyInfoTextListeners() {
+    document.querySelectorAll('.info-text').forEach(span => {
+        span.addEventListener('click', function() {
+            const fullText = this.getAttribute('data-full');
+            if (this.classList.contains('truncate')) {
+                this.textContent = fullText;
+                this.classList.remove('truncate');
+                this.classList.add('whitespace-normal', 'break-words');
+            } else {
+                this.textContent = truncateText(fullText, 255);
+                this.classList.add('truncate');
+                this.classList.remove('whitespace-normal', 'break-words');
+            }
+        });
+    });
 }
 
 /**
