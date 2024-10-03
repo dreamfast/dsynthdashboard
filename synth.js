@@ -32,7 +32,8 @@ let state = {
     lastKFile: 1,
     history: [[]],
     currentStatus: 'queued',
-    buildInProgress: false
+    buildInProgress: false,
+    userSwitchedTab: false
 };
 
 
@@ -67,6 +68,7 @@ const switchTab = (tabName) => {
     const activeLink = document.querySelector(`.tab-link[data-tab="${tabName}"]`);
     activeLink.classList.add('border-blue-500', 'text-blue-600');
     activeLink.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+    state.userSwitchedTab = true;
 };
 
 /**
@@ -255,10 +257,14 @@ const processSummary = (data) => {
     const activeBuilder = data.builders.find(builder => builder.phase !== "Idle");
     if (activeBuilder) {
         state.buildInProgress = true;
-        switchTab('progress-builders');
+        if (!state.userSwitchedTab) {
+            switchTab('progress-builders');
+        }
     } else if (state.buildInProgress) {
         state.buildInProgress = false;
-        switchTab('build-report');
+        if (!state.userSwitchedTab) {
+            switchTab('build-report');
+        }
     }
 };
 
@@ -383,8 +389,13 @@ const initializeApp = async () => {
             });
         });
 
-        // Initially show the Build Report tab
-        switchTab('build-report');
+        const activeBuilder = summaryData.builders.find(builder => builder.phase !== "Idle");
+        if (activeBuilder) {
+            switchTab('progress-builders');
+        } else {
+            switchTab('build-report');
+        }
+        state.userSwitchedTab = false; // Reset after initial tab selection
 
         // Set up polling
         const pollData = async () => {
