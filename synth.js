@@ -18,8 +18,8 @@
 
 // Config object for API settings
 const CONFIG = {
-    API_BASE_URL: '', // Will default to 'https://ironman.dragonflybsd.org' if empty
-    PORT: '', // Will be omitted from the URL if empty, defaulting to HTTPS
+    API_BASE_URL: 'http://localhost', // Will default to 'https://ironman.dragonflybsd.org' if empty
+    PORT: 8899, // Will be omitted from the URL if empty, defaulting to HTTPS
     PATH: '', // Will default to 'dports/logs/Report' if empty
     POLL_INTERVAL: 10000, // 10 seconds
     HTML_TITLE: 'DSynth Dashboard'
@@ -47,7 +47,9 @@ function generateUrl(endpoint = '') {
     const baseUrl = CONFIG.API_BASE_URL || 'https://ironman.dragonflybsd.org';
     const port = CONFIG.PORT ? `:${CONFIG.PORT}` : '';
     const path = CONFIG.PATH || 'dports/logs/Report';
-    return `${baseUrl}${port}/${path}/${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
+    const timestamp = Date.now(); // Current Unix timestamp in milliseconds
+    const url = `${baseUrl}${port}/${path}/${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
+    return `${url}${url.includes('?') ? '&' : '?'}t=${timestamp}`;
 }
 
 /**
