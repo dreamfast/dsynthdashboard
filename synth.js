@@ -253,16 +253,16 @@ const processHistory = (historyData) => {
     const reportBody = document.getElementById('report_body');
     const fragment = document.createDocumentFragment();
 
-    buildHistory.forEach(item => {
+    buildHistory.forEach((item, index) => {
         const row = document.createElement('tr');
-        row.className = getRowClass(item.result);
+        row.className = `${getRowClass(item.result)}`;
         row.innerHTML = `
-            <td class="p-2">${formatEntry(item.entry, item.origin)}</td>
+            <td class="p-2">${index + 1}</td>
             <td class="p-2">${item.elapsed}</td>
             <td class="p-2">[${item.ID}]</td>
             <td class="p-2"><span class="inline-block px-2 py-1 text-xs font-bold text-white ${getResultClass(item.result)} rounded">${item.result}</span></td>
-            <td class="text-left p-2">${portsMon(item.origin)}</td>
-            <td class="text-left p-2">${information(item.result, item.origin, item.info)}</td>
+            <td class="p-2">${portsMon(item.origin)}</td>
+            <td class="p-2 relative">${information(item.result, item.origin, item.info)}</td>
             <td class="p-2">${skipInfo(item.result, item.info)}</td>
             <td class="p-2">${item.duration}</td>
         `;
@@ -271,6 +271,22 @@ const processHistory = (historyData) => {
 
     reportBody.innerHTML = '';
     reportBody.appendChild(fragment);
+
+    // Add event listeners for expanding/collapsing information
+    document.querySelectorAll('.info-text').forEach(span => {
+        span.addEventListener('click', function() {
+            const fullText = this.getAttribute('data-full');
+            if (this.classList.contains('truncate')) {
+                this.textContent = fullText;
+                this.classList.remove('truncate');
+                this.classList.add('whitespace-normal', 'break-words');
+            } else {
+                this.textContent = truncateText(fullText, 255);
+                this.classList.add('truncate');
+                this.classList.remove('whitespace-normal', 'break-words');
+            }
+        });
+    });
 };
 
 /**
@@ -436,6 +452,26 @@ function portsMon(origin) {
     return `<a class="text-blue-600 hover:underline" title="portsmon for ${origin}" href="https://www.freshports.org/${category}/${portName}">${origin}</a>`;
 }
 /**
+ * Truncates text to a specified length
+ * @param {string} text - The text to truncate
+ * @param {number} maxLength - The maximum length of the truncated text
+ * @returns {string} Truncated text with ellipsis if necessary
+ */
+function truncateText(text, maxLength) {
+    if (text.length <= maxLength) return text;
+    return text.substr(0, maxLength) + '...';
+}
+
+/**
+ * Checks if a string contains an href attribute
+ * @param {string} text - The text to check
+ * @returns {boolean} True if the text contains an href, false otherwise
+ */
+function containsHref(text) {
+    return text.includes('href=');
+}
+
+/**
  * Generates information HTML based on the build result
  * @param {string} result - The build result
  * @param {string} origin - The origin of the port
@@ -443,21 +479,34 @@ function portsMon(origin) {
  * @returns {string} Formatted HTML with build information
  */
 function information(result, origin, info) {
+    let content;
     switch (result) {
         case "meta":
-            return 'meta-node complete.';
+            content = 'meta-node complete.';
+            break;
         case "built":
-            return `<a class="text-blue-600 hover:underline" href="${logFile(origin)}">logfile</a>`;
+            content = `<a class="text-blue-600 hover:underline" href="${logFile(origin)}">logfile</a>`;
+            break;
         case "failed":
             const [phase] = info.split(':');
-            return `Failed ${phase} phase (<a class="text-blue-600 hover:underline" href="${logFile(origin)}">logfile</a>)`;
+            content = `Failed ${phase} phase (<a class="text-blue-600 hover:underline" href="${logFile(origin)}">logfile</a>)`;
+            break;
         case "skipped":
-            return `Issue with ${info}`;
+            content = `Issue with ${info}`;
+            break;
         case "ignored":
             const [reason] = info.split(':|:');
-            return reason;
+            content = reason;
+            break;
         default:
-            return "??";
+            content = "??";
+    }
+
+    if (!containsHref(content)) {
+        const truncated = truncateText(content, 255);
+        return `<span class="info-text cursor-pointer block truncate" data-full="${content}" title="${content}">${truncated}</span>`;
+    } else {
+        return content;
     }
 }
 
