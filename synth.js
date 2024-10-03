@@ -16,59 +16,83 @@
  *
  */
 
-// Config
+// Config object for API settings
 const CONFIG = {
     API_BASE_URL: 'http://localhost', // Replace with actual API base URL
-    PORT: 8899, // Port number for the API, if this value is empty it will default to the HTTPS.
+    PORT: 8899, // Port number for the API, defaults to HTTPS if empty
     POLL_INTERVAL: 10000, // 10 seconds
+    HTML_TITLE: 'DSynth Dashboard'
 };
 
-// State
+// State object to manage application state
 let state = {
     runActive: false,
     kFiles: 0,
     lastKFile: 1,
     history: [[]],
-    currentStatus: 'all',
+    currentStatus: 'queued',
     buildInProgress: false
 };
 
-// Tab switching functionality
+/**
+ * Switches between tabs in the UI
+ * @param {string} tabName - The name of the tab to switch to
+ */
 const switchTab = (tabName) => {
-    document.querySelectorAll('.tab-content').forEach(tab => {
-        tab.classList.add('hidden');
-    });
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
     document.getElementById(tabName).classList.remove('hidden');
 
     document.querySelectorAll('.tab-link').forEach(link => {
         link.classList.remove('border-blue-500', 'text-blue-600');
         link.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
     });
-    document.querySelector(`.tab-link[data-tab="${tabName}"]`).classList.add('border-blue-500', 'text-blue-600');
-    document.querySelector(`.tab-link[data-tab="${tabName}"]`).classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+    const activeLink = document.querySelector(`.tab-link[data-tab="${tabName}"]`);
+    activeLink.classList.add('border-blue-500', 'text-blue-600');
+    activeLink.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
 };
 
-// Update the existing updateProgressBar function with this new one
+/**
+ * Updates the progress bar based on build statistics
+ * @param {Object} stats - Object containing build statistics
+ */
 const updateProgressBar = (stats) => {
     const total = stats.queued + stats.built + stats.meta + stats.failed + stats.ignored + stats.skipped;
 
+    if (total === 0) {
+        document.getElementById('progress-bar').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('progress-bar').style.display = 'flex';
+
     const updateSection = (id, value) => {
         const element = document.getElementById(`progress-${id}`);
-        const percentage = (value / total) * 100;
-        element.style.width = `${percentage}%`;
+        if (element) {
+            const percentage = (value / total) * 200;
+            element.style.width = `${percentage}%`;
+        } else {
+            console.warn(`Progress bar element with id 'progress-${id}' not found.`);
+        }
     };
 
-    updateSection('built', stats.built);
-    updateSection('meta', stats.meta);
-    updateSection('failed', stats.failed);
-    updateSection('ignored', stats.ignored);
-    updateSection('skipped', stats.skipped);
+    ['built', 'meta', 'failed', 'ignored', 'skipped'].forEach(id => updateSection(id, stats[id]));
 };
 
+/**
+ * Creates a badge element for displaying statistics
+ * @param {string} key - The key of the statistic
+ * @param {number} value - The value of the statistic
+ * @param {string} color - The color of the badge
+ * @returns {string} HTML string for the badge
+ */
 const createBadge = (key, value, color) => {
-    return `<span id="stats_${key}" class="px-2 py-1 rounded-full bg-${color}-100 text-${color}-800 text-xs font-medium cursor-pointer filterable">${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}</span>`;
+    return `<span id="stats_${key}" class="px-2 py-1 rounded-full bg-${color}-100 text-${color}-800 text-xs font-medium cursor-pointer filterable" onclick="handleStatusFilter('${key}')">${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}</span>`;
 };
 
+/**
+ * Updates the statistics display in the UI
+ * @param {Object} stats - Object containing build statistics
+ */
 const updateStatsDisplay = (stats) => {
     const statsContainer = document.getElementById('stats');
     const additionalStatsContainer = document.getElementById('additional_stats');
@@ -77,7 +101,7 @@ const updateStatsDisplay = (stats) => {
     additionalStatsContainer.innerHTML = '';
 
     const mainStats = ['queued', 'built', 'meta', 'failed', 'ignored', 'skipped'];
-    const colors = ['blue', 'green', 'yellow', 'red', 'orange', 'purple'];
+    const colors = ['gray', 'green', 'purple', 'red', 'blue', 'yellow'];
 
     mainStats.forEach((key, index) => {
         statsContainer.innerHTML += createBadge(key, stats[key], colors[index]);
@@ -87,8 +111,52 @@ const updateStatsDisplay = (stats) => {
     additionalStats.forEach(key => {
         additionalStatsContainer.innerHTML += `<div><span class="font-bold">${key.charAt(0).toUpperCase() + key.slice(1)}:</span> <span id="stats_${key}">${stats[key]}</span></div>`;
     });
+
+    // Update the selected stat if there is one
+    if (state.currentStatus) {
+        updateSelectedStat(state.currentStatus);
+    }
 };
 
+/**
+ * Updates the selected stat badge
+ * @param {string} status - The selected status
+ */
+const updateSelectedStat = (status) => {
+    const statBadges = document.querySelectorAll('.filterable');
+    statBadges.forEach(badge => {
+        const key = badge.id.split('_')[1];
+        if (key === status) {
+            badge.classList.remove('bg-gray-100', 'bg-green-100', 'bg-purple-100', 'bg-red-100', 'bg-blue-100', 'bg-yellow-100');
+            badge.classList.add(`bg-${getStatColor(key)}-300`);
+        } else {
+            badge.classList.remove('bg-gray-300', 'bg-green-300', 'bg-purple-300', 'bg-red-300', 'bg-blue-300', 'bg-yellow-300');
+            badge.classList.add(`bg-${getStatColor(key)}-100`);
+        }
+    });
+};
+
+/**
+ * Gets the color for a specific stat
+ * @param {string} key - The key of the statistic
+ * @returns {string} The color associated with the stat
+ */
+const getStatColor = (key) => {
+    const colors = {
+        queued: 'gray',
+        built: 'green',
+        meta: 'purple',
+        failed: 'red',
+        ignored: 'blue',
+        skipped: 'yellow'
+    };
+    return colors[key] || 'gray';
+};
+
+/**
+ * Updates the builders table in the UI
+ * @param {Array} builders - Array of builder objects
+ */
 const updateBuildersTable = (builders) => {
     const tableBody = document.querySelector('#builders_body');
     const fragment = document.createDocumentFragment();
@@ -109,7 +177,12 @@ const updateBuildersTable = (builders) => {
     tableBody.appendChild(fragment);
 };
 
-// API functions
+/**
+ * Fetches data from the API with retry mechanism
+ * @param {string} url - The URL to fetch from
+ * @param {number} retries - Number of retry attempts
+ * @returns {Promise} Resolved with JSON data or rejected with error
+ */
 const fetchWithRetry = async (url, retries = 3) => {
     for (let i = 0; i < retries; i++) {
         try {
@@ -123,18 +196,29 @@ const fetchWithRetry = async (url, retries = 3) => {
     }
 };
 
+/**
+ * Fetches the summary data from the API
+ * @returns {Promise} Resolved with summary data
+ */
 const fetchSummary = () => fetchWithRetry(`${CONFIG.API_BASE_URL}:${CONFIG.PORT}/dports/logs/Report/summary.json`);
 
+/**
+ * Fetches history data from the API
+ * @param {number} kFiles - Number of history files to fetch
+ * @returns {Promise} Resolved with an array of history data
+ */
 const fetchHistory = async (kFiles) => {
-    const fetchPromises = [];
-    for (let i = 1; i <= kFiles; i++) {
-        const fileName = String(i).padStart(2, '0') + '_history.json';
-        fetchPromises.push(fetchWithRetry(`${CONFIG.API_BASE_URL}:${CONFIG.PORT}/dports/logs/Report/${fileName}`));
-    }
+    const fetchPromises = Array.from({ length: kFiles }, (_, i) => {
+        const fileName = String(i + 1).padStart(2, '0') + '_history.json';
+        return fetchWithRetry(`${CONFIG.API_BASE_URL}:${CONFIG.PORT}/dports/logs/Report/${fileName}`);
+    });
     return Promise.all(fetchPromises);
 };
 
-// Main functions
+/**
+ * Processes the summary data and updates the UI
+ * @param {Object} data - The summary data object
+ */
 const processSummary = (data) => {
     state.kFiles = parseInt(data.kfiles);
     state.runActive = parseInt(data.active);
@@ -150,7 +234,6 @@ const processSummary = (data) => {
 
     updateBuildersTable(data.builders);
 
-    // Check if there's any active builder
     const activeBuilder = data.builders.find(builder => builder.phase !== "Idle");
     if (activeBuilder) {
         state.buildInProgress = true;
@@ -161,6 +244,10 @@ const processSummary = (data) => {
     }
 };
 
+/**
+ * Processes the history data and updates the build report table
+ * @param {Array} historyData - Array of history data objects
+ */
 const processHistory = (historyData) => {
     const buildHistory = historyData.flat();
     const reportBody = document.getElementById('report_body');
@@ -186,36 +273,60 @@ const processHistory = (historyData) => {
     reportBody.appendChild(fragment);
 };
 
+/**
+ * Handles the search input event
+ * @param {Event} e - The input event object
+ */
 const handleSearch = (e) => {
     const searchValue = e.target.value.toLowerCase();
     filterRows(searchValue, state.currentStatus);
 };
 
+/**
+ * Handles the status filter selection
+ * @param {string} status - The selected status filter
+ */
 const handleStatusFilter = (status) => {
     state.currentStatus = status;
     const searchValue = document.getElementById('search').value.toLowerCase();
     filterRows(searchValue, status);
+    updateSelectedStat(status);
+    switchTab('build-report');
+
+    // Update the document title with the current stat
+    const statBadge = document.getElementById(`stats_${status}`);
+    if (statBadge) {
+        const trimmedText = statBadge.textContent.split(':')[0].trim();
+        document.title = `${CONFIG.HTML_TITLE} - ${trimmedText}`;
+    }
 };
 
+/**
+ * Filters the table rows based on search value and status
+ * @param {string} searchValue - The search input value
+ * @param {string} status - The selected status filter
+ */
 const filterRows = (searchValue, status) => {
     const rows = document.querySelectorAll('#report_body tr');
 
     rows.forEach(row => {
         const rowText = Array.from(row.cells)
-            .filter((_, index) => index !== 3) // Exclude the status cell
+            .filter((_, index) => index !== 3)
             .reduce((text, cell) => text + ' ' + cell.textContent.toLowerCase(), '');
 
         const statusCell = row.cells[3];
         const statusText = statusCell.textContent.trim().toLowerCase();
 
         const matchesSearch = rowText.includes(searchValue);
-        const matchesStatus = status === 'all' || statusText === status;
+        const matchesStatus = status === 'queued' || statusText === status;
 
         row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
     });
 };
 
-// Initialization
+/**
+ * Initializes the application
+ */
 const initializeApp = async () => {
     try {
         const summaryData = await fetchSummary();
@@ -229,12 +340,6 @@ const initializeApp = async () => {
 
         // Set up event listeners
         document.getElementById('search').addEventListener('input', handleSearch);
-        document.querySelectorAll('.filterable').forEach(element => {
-            element.addEventListener('click', () => {
-                const status = element.textContent.split(':')[0].toLowerCase();
-                handleStatusFilter(status === 'queued' ? 'all' : status);
-            });
-        });
 
         // Set up tab switching
         document.querySelectorAll('.tab-link').forEach(link => {
@@ -243,13 +348,6 @@ const initializeApp = async () => {
                 switchTab(e.target.getAttribute('data-tab'));
             });
         });
-
-        // Add an "All" filter
-        const allFilter = document.createElement('span');
-        allFilter.textContent = 'All';
-        allFilter.className = 'px-2 py-1 rounded-full bg-gray-100 text-gray-800 text-xs font-medium cursor-pointer filterable';
-        allFilter.addEventListener('click', () => handleStatusFilter('all'));
-        document.querySelector('.flex.flex-wrap.justify-center.gap-2').appendChild(allFilter);
 
         // Initially show the Build Report tab
         switchTab('build-report');
@@ -265,12 +363,13 @@ const initializeApp = async () => {
         };
 
         if (state.buildInProgress) {
-            pollData();
+            await pollData();
         }
+
+        document.title = `${CONFIG.HTML_TITLE} - ${state.currentStatus.charAt(0).toUpperCase() + state.currentStatus.slice(1)}`;
 
     } catch (error) {
         console.error('Initialization failed:', error);
-        // Display error message to user
         const errorMessageElement = document.getElementById('error-message');
         if (errorMessageElement) {
             errorMessageElement.textContent = 'Failed to load data. Please try refreshing the page.';
@@ -279,9 +378,16 @@ const initializeApp = async () => {
     }
 };
 
+
+// Event listener for DOMContentLoaded
 document.addEventListener('DOMContentLoaded', initializeApp);
 
 // Helper functions
+/**
+ * Gets the CSS class for a table row based on the build result
+ * @param {string} result - The build result
+ * @returns {string} The CSS class for the row
+ */
 function getRowClass(result) {
     const classes = {
         built: 'bg-green-100',
@@ -293,6 +399,11 @@ function getRowClass(result) {
     return classes[result] || 'bg-gray-100';
 }
 
+/**
+ * Gets the CSS class for the result badge based on the build result
+ * @param {string} result - The build result
+ * @returns {string} The CSS class for the badge
+ */
 function getResultClass(result) {
     const classes = {
         built: 'bg-green-500',
@@ -304,17 +415,33 @@ function getResultClass(result) {
     return classes[result] || 'bg-gray-500';
 }
 
+/**
+ * Formats the entry for display in the table
+ * @param {string} entry - The entry name
+ * @param {string} origin - The origin of the entry
+ * @returns {string} Formatted HTML for the entry
+ */
 function formatEntry(entry, origin) {
     return `<span class="entry cursor-pointer text-blue-600 hover:underline" onclick="filter('${origin}')">${entry}</span>`;
 }
 
+/**
+ * Generates a link to the FreshPorts page for the given origin
+ * @param {string} origin - The origin of the port
+ * @returns {string} Formatted HTML for the FreshPorts link
+ */
 function portsMon(origin) {
     const [category, name] = origin.split('/');
     const [portName] = name.split('@');
-    const freshportsLink = `<a class="text-blue-600 hover:underline" title="portsmon for ${origin}" href="https://www.freshports.org/${category}/${portName}">${origin}</a>`;
-    return freshportsLink;
+    return `<a class="text-blue-600 hover:underline" title="portsmon for ${origin}" href="https://www.freshports.org/${category}/${portName}">${origin}</a>`;
 }
-
+/**
+ * Generates information HTML based on the build result
+ * @param {string} result - The build result
+ * @param {string} origin - The origin of the port
+ * @param {string} info - Additional information
+ * @returns {string} Formatted HTML with build information
+ */
 function information(result, origin, info) {
     switch (result) {
         case "meta":
@@ -334,6 +461,12 @@ function information(result, origin, info) {
     }
 }
 
+/**
+ * Generates skip information HTML based on the build result
+ * @param {string} result - The build result
+ * @param {string} info - Additional information
+ * @returns {string} Formatted HTML with skip information
+ */
 function skipInfo(result, info) {
     switch (result) {
         case "failed":
@@ -347,12 +480,20 @@ function skipInfo(result, info) {
     }
 }
 
+/**
+ * Generates the URL for the log file
+ * @param {string} origin - The origin of the port
+ * @returns {string} URL of the log file
+ */
 function logFile(origin) {
     const [category, name] = origin.split('/');
     return `../${category}___${name}.log`;
 }
 
-// Global function used in onclick attributes
+/**
+ * Global function used in onclick attributes to filter the table
+ * @param {string} txt - The text to filter by
+ */
 function filter(txt) {
     const reportInput = document.querySelector('#report input');
     reportInput.value = txt;

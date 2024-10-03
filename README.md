@@ -4,6 +4,13 @@ A simple web application that provides insights to the current DSynth build stat
 
 The original application was developed by John R. Marino <draco@marino.st>. This repository has modernised the javascript, removed any javascript dependencies in favour of vanilla js and uses TailwindCSS for a responsive and modern interface. 
 
+To use on a live website the following files are required:
+- `index.html`
+- `style.css`
+- `synth.js`
+- `favicon.png`
+- `dsynth.png`
+
 ## Configuration
 
 The DSynth Dashboard has some configurable options at the top of `synth.js`.
@@ -34,7 +41,7 @@ A precompiled CSS file is provided, however if you are developing with TailwindC
 ## Building the Tailwind CSS File
 1. Run the following command to build the `tailwindcss` `style.css` file:
     ```sh
-    npx tailwindcss -i ./css_src/input.css -o ./style.css --watch
+    npx tailwindcss -i ./input.css -o ./style.css --watch --minify
     ```
 
 This command will watch for changes in the `index.html` and `synth.js` file and output the compiled CSS to `style.css`. Remove the `--watch` argument if you just want to compile the file.
