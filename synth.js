@@ -33,6 +33,8 @@ let state = {
     history: [[]],
     currentStatus: 'queued',
     buildInProgress: false,
+    sortDirection: null, // null for default, 'asc' for ascending, 'desc' for descending
+    sortColumn: null,
     userSwitchedTab: false
 };
 
@@ -273,28 +275,10 @@ const processSummary = (data) => {
  * @param {Array} historyData - Array of history data objects
  */
 const processHistory = (historyData) => {
+    state.history = historyData;
     const buildHistory = historyData.flat();
-    const reportBody = document.getElementById('report_body');
-    const fragment = document.createDocumentFragment();
-
-    buildHistory.forEach((item, index) => {
-        const row = document.createElement('tr');
-        row.className = `${getRowClass(item.result)}`;
-        row.innerHTML = `
-            <td class="p-2">${index + 1}</td>
-            <td class="p-2">${item.elapsed}</td>
-            <td class="p-2">[${item.ID}]</td>
-            <td class="p-2"><span class="inline-block px-2 py-1 text-xs font-bold text-white ${getResultClass(item.result)} rounded">${item.result}</span></td>
-            <td class="p-2">${portsMon(item.origin)}</td>
-            <td class="p-2 relative">${information(item.result, item.origin, item.info)}</td>
-            <td class="p-2">${skipInfo(item.result, item.info)}</td>
-            <td class="p-2">${item.duration}</td>
-        `;
-        fragment.appendChild(row);
-    });
-
-    reportBody.innerHTML = '';
-    reportBody.appendChild(fragment);
+    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+    updateBuildReportTable(filteredAndSortedHistory);
 
     // Add event listeners for expanding/collapsing information
     document.querySelectorAll('.info-text').forEach(span => {
@@ -311,6 +295,14 @@ const processHistory = (historyData) => {
             }
         });
     });
+
+    // Update sort icon
+    updateSortIcon();
+
+    // Apply current filter if any
+    if (state.currentStatus !== 'queued') {
+        filterRows(document.getElementById('search').value.toLowerCase(), state.currentStatus);
+    }
 };
 
 /**
@@ -328,8 +320,9 @@ const handleSearch = (e) => {
  */
 const handleStatusFilter = (status) => {
     state.currentStatus = status;
-    const searchValue = document.getElementById('search').value.toLowerCase();
-    filterRows(searchValue, status);
+    const buildHistory = state.history.flat();
+    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+    updateBuildReportTable(filteredAndSortedHistory);
     updateSelectedStat(status);
     switchTab('build-report');
 
@@ -340,6 +333,18 @@ const handleStatusFilter = (status) => {
         document.title = `${CONFIG.HTML_TITLE} - ${trimmedText}`;
     }
 };
+
+/**
+ * Updates the sort icon in the Skip column header
+ */
+function updateSortIcon() {
+    const sortIcon = document.getElementById('skipSortIcon');
+    if (state.sortColumn === 'skip') {
+        sortIcon.textContent = state.sortDirection === 'asc' ? '▲' : '▼';
+    } else {
+        sortIcon.textContent = '⇅';
+    }
+}
 
 /**
  * Filters the table rows based on search value and status
@@ -363,6 +368,125 @@ const filterRows = (searchValue, status) => {
         row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
     });
 };
+
+/**
+ * Sorts the build history based on the Skip column
+ * @param {Array} buildHistory - The array of build history items
+ * @returns {Array} Sorted build history array
+ */
+function sortBySkip(buildHistory) {
+    return buildHistory.sort((a, b) => {
+        const skipA = parseInt(skipInfo(a.result, a.info)) || 0;
+        const skipB = parseInt(skipInfo(b.result, b.info)) || 0;
+
+        if (state.sortDirection === 'asc') {
+            return skipA - skipB;
+        } else {
+            return skipB - skipA;
+        }
+    });
+}
+
+/**
+ * Handles the click event on the Skip column header
+ */
+function handleSkipSort() {
+    if (state.sortColumn === 'skip') {
+        if (state.sortDirection === 'asc') {
+            state.sortDirection = 'desc';
+        } else if (state.sortDirection === 'desc') {
+            state.sortColumn = null;
+            state.sortDirection = null;
+        }
+    } else {
+        state.sortColumn = 'skip';
+        state.sortDirection = 'asc';
+    }
+
+    const buildHistory = state.history.flat();
+    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+    updateBuildReportTable(filteredAndSortedHistory);
+    updateSortIcon();
+}
+
+/**
+ * Filters and sorts the build history based on current state
+ * @param {Array} buildHistory - The full build history array
+ * @returns {Array} Filtered and sorted build history array
+ */
+/**
+ * Filters and sorts the build history based on current state
+ * @param {Array} buildHistory - The full build history array
+ * @returns {Array} Filtered and sorted build history array
+ */
+function filterAndSortHistory(buildHistory) {
+    // Add original index to each item
+    let indexedHistory = buildHistory.map((item, index) => ({...item, originalIndex: index + 1}));
+
+    // Filter by current status
+    let filteredHistory = indexedHistory;
+    if (state.currentStatus !== 'queued') {
+        filteredHistory = indexedHistory.filter(item => item.result.toLowerCase() === state.currentStatus);
+    }
+
+    // Sort if necessary
+    if (state.sortColumn === 'skip' && state.sortDirection) {
+        filteredHistory = sortBySkip(filteredHistory);
+    }
+
+    return filteredHistory;
+}
+
+/**
+ * Updates the build report table with filtered and sorted data
+ * @param {Array} filteredAndSortedHistory - The filtered and sorted build history array
+ */
+function updateBuildReportTable(filteredAndSortedHistory) {
+    const reportBody = document.getElementById('report_body');
+    const fragment = document.createDocumentFragment();
+
+    filteredAndSortedHistory.forEach((item, index) => {
+        const row = document.createElement('tr');
+        row.className = `${getRowClass(item.result)}`;
+        row.innerHTML = `
+            <td class="p-2">${item.originalIndex}</td>
+            <td class="p-2">${item.elapsed}</td>
+            <td class="p-2">[${item.ID}]</td>
+            <td class="p-2"><span class="inline-block px-2 py-1 text-xs font-bold text-white ${getResultClass(item.result)} rounded">${item.result}</span></td>
+            <td class="p-2">${portsMon(item.origin)}</td>
+            <td class="p-2 relative">${information(item.result, item.origin, item.info)}</td>
+            <td class="p-2">${skipInfo(item.result, item.info)}</td>
+            <td class="p-2">${item.duration}</td>
+        `;
+        fragment.appendChild(row);
+    });
+
+    reportBody.innerHTML = '';
+    reportBody.appendChild(fragment);
+}
+
+
+/**
+ * Creates a table row for a build history item
+ * @param {Object} item - The build history item
+ * @param {number} index - The row index
+ * @returns {HTMLTableRowElement} The created table row
+ */
+function createTableRow(item, index) {
+    const row = document.createElement('tr');
+    row.className = `${getRowClass(item.result)}`;
+    row.innerHTML = `
+        <td class="p-2">${index}</td>
+        <td class="p-2">${item.elapsed}</td>
+        <td class="p-2">[${item.ID}]</td>
+        <td class="p-2"><span class="inline-block px-2 py-1 text-xs font-bold text-white ${getResultClass(item.result)} rounded">${item.result}</span></td>
+        <td class="p-2">${portsMon(item.origin)}</td>
+        <td class="p-2 relative">${information(item.result, item.origin, item.info)}</td>
+        <td class="p-2">${skipInfo(item.result, item.info)}</td>
+        <td class="p-2">${item.duration}</td>
+    `;
+    return row;
+}
 
 /**
  * Initializes the application
