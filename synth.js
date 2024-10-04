@@ -22,7 +22,8 @@ const CONFIG = {
     PORT: '', // Will be omitted from the URL if empty, defaulting to HTTPS
     PATH: '', // Will default to 'dports/logs/Report' if empty
     POLL_INTERVAL: 10000, // 10 seconds
-    HTML_TITLE: 'DSynth Dashboard'
+    HTML_TITLE: 'DSynth Dashboard',
+    FOOTER_TEXT: 'DragonFlyBSD. All Rights Reserved.' // Customise the footer text
 };
 
 // State object to manage application state
@@ -148,7 +149,7 @@ const truncateText = (text, maxLength) =>
     text.length <= maxLength ? text : text.substr(0, maxLength) + '...';
 
 /**
- * Checks if the given text contains an 'href=' attribute.
+ * Checks if the given text contains 'href=' attribute.
  *
  * @param {string} text - The text to check.
  * @returns {boolean} - True if the text contains 'href=', false otherwise.
@@ -290,8 +291,11 @@ const updateBuildersTable = (builders) => {
             <td class="px-1 py-1 whitespace-nowrap">
                 ${getBuildPhaseBadge(builder.phase)}
             </td>
-            <td class="px-1 py-1 whitespace-nowrap text-sm text-gray-500">${builder.origin || '-'}</td>
+            <td class="px-1 py-1 whitespace-nowrap text-sm text-gray-500">${builder.origin ? portsMon(builder.origin) : '-'}</td>
             <td class="px-1 py-1 whitespace-nowrap text-sm text-gray-500">${builder.lines || '-'}</td>
+            <td class="px-1 py-1 whitespace-nowrap text-sm text-gray-500">
+                ${builder.origin ? `<a href="${logFile(builder.origin)}" class="text-blue-600 hover:underline" target="_blank">Log</a>` : '-'}
+            </td>
         `;
         fragment.appendChild(row);
     });
@@ -304,8 +308,41 @@ const updateBuildersTable = (builders) => {
  * Updates the sort icon based on the current sort state.
  */
 const updateSortIcon = () => {
-    const sortIcon = document.getElementById('skipSortIcon');
-    sortIcon.textContent = state.sortColumn === 'skip' ? (state.sortDirection === 'asc' ? '▲' : '▼') : '⇅';
+    const sortIcons = {
+        'skip': document.getElementById('skipSortIcon'),
+        'no': document.getElementById('noSortIcon')
+    };
+
+    for (const [column, icon] of Object.entries(sortIcons)) {
+        icon.textContent = state.sortColumn === column
+            ? (state.sortDirection === 'desc' ? '▼' : '▲')
+            : '⇅';
+    }
+};
+
+/**
+ * Handles the sorting of the build history by the specified column.
+ *
+ * - Toggles the sort direction if the same column is clicked again.
+ * - Sets the sort direction to ascending if a new column is clicked.
+ * - Updates the build report table with the filtered and sorted history.
+ * - Updates the sort icon to reflect the current sort state.
+ *
+ * @param {string} column - The column to sort by.
+ */
+const handleSort = (column) => {
+    if (state.sortColumn === column) {
+        state.sortDirection = state.sortDirection === 'desc' ? 'asc' : null;
+        state.sortColumn = state.sortDirection ? column : null;
+    } else {
+        state.sortColumn = column;
+        state.sortDirection = 'desc'; // Set default to descending
+    }
+
+    const buildHistory = state.history.flat();
+    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+    updateBuildReportTable(filteredAndSortedHistory);
+    updateSortIcon();
 };
 
 /**
@@ -378,24 +415,6 @@ const handleStatusFilter = (status) => {
     }
 };
 
-/**
- * Handles the sorting of the build history by the 'skip' column, toggling the sort direction.
- */
-const handleSkipSort = () => {
-    if (state.sortColumn === 'skip') {
-        state.sortDirection = state.sortDirection === 'asc' ? 'desc' : null;
-        state.sortColumn = state.sortDirection ? 'skip' : null;
-    } else {
-        state.sortColumn = 'skip';
-        state.sortDirection = 'asc';
-    }
-
-    const buildHistory = state.history.flat();
-    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
-    updateBuildReportTable(filteredAndSortedHistory);
-    updateSortIcon();
-};
-
 // Data Processing Functions
 
 /**
@@ -421,18 +440,31 @@ const filterRows = (searchValue, status) => {
     });
 };
 
+
 /**
- * Sorts the build history by the 'skip' column.
+ * Sorts the build history by the specified column.
  *
- * @param {Array} buildHistory - The build history array.
+ * - Parses the skip information or ID for sorting.
+ * - Sorts in ascending or descending order based on the current sort direction.
+ *
+ * @param {Array} buildHistory - The array of build history objects.
+ * @param {string} column - The column to sort by ('skip' or 'id').
  * @returns {Array} - The sorted build history array.
  */
-const sortBySkip = (buildHistory) =>
-    buildHistory.sort((a, b) => {
-        const skipA = parseInt(skipInfo(a.result, a.info)) || 0;
-        const skipB = parseInt(skipInfo(b.result, b.info)) || 0;
-        return state.sortDirection === 'asc' ? skipA - skipB : skipB - skipA;
+const sortByColumn = (buildHistory, column) => {
+    return buildHistory.sort((a, b) => {
+        let valueA, valueB;
+        if (column === 'skip') {
+            valueA = parseInt(skipInfo(a.result, a.info)) || 0;
+            valueB = parseInt(skipInfo(b.result, b.info)) || 0;
+        } else if (column === 'no') {
+            valueA = a.originalIndex;
+            valueB = b.originalIndex;
+        }
+        return state.sortDirection === 'asc' ? valueA - valueB : valueB - valueA;
     });
+};
+
 
 /**
  * Filters and sorts the build history based on the current status and sort settings.
@@ -447,8 +479,8 @@ const filterAndSortHistory = (buildHistory) => {
         indexedHistory = indexedHistory.filter(item => item.result.toLowerCase() === state.currentStatus);
     }
 
-    if (state.sortColumn === 'skip' && state.sortDirection) {
-        indexedHistory = sortBySkip(indexedHistory);
+    if ((state.sortColumn === 'skip' || state.sortColumn === 'no') && state.sortDirection) {
+        indexedHistory = sortByColumn(indexedHistory, state.sortColumn);
     }
 
     return indexedHistory;
@@ -570,11 +602,16 @@ const fetchHistory = async (kFiles) => {
  */
 const initializeApp = async () => {
     try {
+        applyFooterText();
+
         const summaryData = await fetchSummary();
         processSummary(summaryData);
 
         const historyData = await fetchHistory(state.kFiles);
         processHistory(historyData);
+
+        document.getElementById('skipHeader').addEventListener('click', () => handleSort('skip'));
+        document.getElementById('noHeader').addEventListener('click', () => handleSort('no'));
 
         document.getElementById('build_info').style.display = 'block';
         document.getElementById('loading_stats_build').style.display = 'none';
@@ -655,7 +692,7 @@ function information(result, origin, info) {
     }
 
     if (!containsHref(content)) {
-        const truncated = truncateText(content, 255);
+        const truncated = truncateText(content, 80);
         return `<span class="info-text cursor-pointer block truncate" data-full="${content}" title="${content}">${truncated}</span>`;
     } else {
         return content;
@@ -694,10 +731,23 @@ function applyInfoTextListeners() {
                 this.classList.remove('truncate');
                 this.classList.add('whitespace-normal', 'break-words');
             } else {
-                this.textContent = truncateText(fullText, 255);
+                this.textContent = truncateText(fullText, 80);
                 this.classList.add('truncate');
                 this.classList.remove('whitespace-normal', 'break-words');
             }
         });
     });
+}
+
+/**
+ * Updates the footer text with the current year and configured footer text.
+ *
+ * - Retrieves the current year.
+ * - Selects the footer element by its ID.
+ * - Sets the footer text to include the current year and the configured footer text.
+ */
+function applyFooterText() {
+    const currentYear = new Date().getFullYear();
+    const footer = document.getElementById('footer');
+    footer.textContent = `© ${currentYear} ${CONFIG.FOOTER_TEXT}`;
 }
