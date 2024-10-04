@@ -18,19 +18,18 @@
 
 // Config object for API settings
 const CONFIG = {
-    API_BASE_URL: 'http://localhost', // Will default to 'https://ironman.dragonflybsd.org' if empty
-    PORT: 8899, // Will be omitted from the URL if empty, defaulting to HTTPS
+    API_BASE_URL: '', // Will default to 'https://ironman.dragonflybsd.org' if empty
+    PORT: '', // Will be omitted from the URL if empty, defaulting to HTTPS
     PATH: '', // Will default to 'dports/logs/Report' if empty
     POLL_INTERVAL: 10000, // 10 seconds
     HTML_TITLE: 'DSynth Dashboard'
 };
 
 // State object to manage application state
-let state = {
+const state = {
     runActive: false,
     kFiles: 0,
-    lastKFile: 1,
-    history: [[]],
+    history: [],
     currentStatus: 'queued',
     buildInProgress: false,
     sortDirection: null, // null for default, 'asc' for ascending, 'desc' for descending
@@ -38,26 +37,141 @@ let state = {
     userSwitchedTab: false
 };
 
+// Helper Functions
 
 /**
- * Generates a URL based on the current configuration settings.
+ * Generates a URL with the given endpoint, including the base URL, port, and path from the CONFIG object.
+ * Adds a timestamp query parameter to prevent caching.
  *
- * @param {string} [endpoint=''] - The specific endpoint to append to the URL.
- * @returns {string} The complete URL with the base URL, port (if specified), path, and endpoint.
- *
+ * @param {string} [endpoint=''] - The endpoint to append to the base URL and path.
+ * @returns {string} - The fully constructed URL with the timestamp query parameter.
  */
-function generateUrl(endpoint = '') {
+const generateUrl = (endpoint = '') => {
     const baseUrl = CONFIG.API_BASE_URL || 'https://ironman.dragonflybsd.org';
     const port = CONFIG.PORT ? `:${CONFIG.PORT}` : '';
     const path = CONFIG.PATH || 'dports/logs/Report';
-    const timestamp = Date.now(); // Current Unix timestamp in milliseconds
     const url = `${baseUrl}${port}/${path}/${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
-    return `${url}${url.includes('?') ? '&' : '?'}t=${timestamp}`;
-}
+    return `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+};
 
 /**
- * Switches between tabs in the UI
- * @param {string} tabName - The name of the tab to switch to
+ * Generates an HTML badge element for a given build phase.
+ *
+ * @param {string} phase - The current build phase.
+ * @returns {string} - The HTML string for the badge element with appropriate styling.
+ */
+const getBuildPhaseBadge = (phase) => {
+    const badgeClasses = {
+        'Idle': 'bg-gray-100 text-gray-800',
+        'build': 'bg-green-100 text-green-800',
+        'install-pkgs': 'bg-yellow-100 text-yellow-800',
+        'extract': 'bg-purple-100 text-purple-800'
+    };
+    const defaultClasses = 'bg-blue-100 text-blue-800';
+
+    return `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${badgeClasses[phase] || defaultClasses}">
+        ${phase}
+    </span>`;
+};
+
+/**
+ * Returns the color associated with a given status key.
+ *
+ * @param {string} key - The status key.
+ * @returns {string} - The color associated with the status key.
+ */
+const getStatColor = (key) => {
+    const colors = {
+        queued: 'gray',
+        built: 'green',
+        meta: 'purple',
+        failed: 'red',
+        ignored: 'blue',
+        skipped: 'yellow'
+    };
+    return colors[key] || 'gray';
+};
+
+/**
+ * Returns the CSS class for a table row based on the result status.
+ *
+ * @param {string} result - The result status.
+ * @returns {string} - The CSS class for the table row.
+ */
+const getRowClass = (result) => {
+    const classes = {
+        built: 'bg-green-100',
+        failed: 'bg-red-100',
+        skipped: 'bg-yellow-100',
+        ignored: 'bg-blue-100',
+        meta: 'bg-purple-100'
+    };
+    return classes[result] || 'bg-gray-100';
+};
+
+/**
+ * Returns the CSS class for a result badge based on the result status.
+ *
+ * @param {string} result - The result status.
+ * @returns {string} - The CSS class for the result badge.
+ */
+const getResultClass = (result) => {
+    const classes = {
+        built: 'bg-green-500',
+        failed: 'bg-red-500',
+        skipped: 'bg-yellow-500',
+        ignored: 'bg-blue-500',
+        meta: 'bg-purple-500'
+    };
+    return classes[result] || 'bg-gray-500';
+};
+
+/**
+ * Generates a hyperlink to the FreshPorts page for a given origin.
+ *
+ * @param {string} origin - The origin in the format 'category/portName'.
+ * @returns {string} - The formatted HTML string with the hyperlink.
+ */
+const portsMon = (origin) => {
+    const [category, portName] = origin.split('/');
+    return `<a class="text-blue-600 hover:underline" title="portsmon for ${origin}" href="https://www.freshports.org/${category}/${portName.split('@')[0]}">${origin}</a>`;
+};
+
+/**
+ * Truncates the given text to the specified maximum length, appending '...' if truncated.
+ *
+ * @param {string} text - The text to truncate.
+ * @param {number} maxLength - The maximum length of the truncated text.
+ * @returns {string} - The truncated text.
+ */
+const truncateText = (text, maxLength) =>
+    text.length <= maxLength ? text : text.substr(0, maxLength) + '...';
+
+/**
+ * Checks if the given text contains an 'href=' attribute.
+ *
+ * @param {string} text - The text to check.
+ * @returns {boolean} - True if the text contains 'href=', false otherwise.
+ */
+const containsHref = (text) => text.includes('href=');
+
+/**
+ * Generates a URL for the log file of the given origin.
+ *
+ * @param {string} origin - The origin in the format 'category/portName'.
+ * @returns {string} - The URL for the log file.
+ */
+const logFile = (origin) => {
+    const [category, name] = origin.split('/');
+    return generateUrl(`../${category}___${name}.log`);
+};
+
+// UI Update Functions
+
+/**
+ * Switches the active tab to the specified tab name.
+ *
+ * @param {string} tabName - The name of the tab to switch to.
  */
 const switchTab = (tabName) => {
     document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
@@ -74,46 +188,48 @@ const switchTab = (tabName) => {
 };
 
 /**
- * Updates the progress bar based on build statistics
- * @param {Object} stats - Object containing build statistics
+ * Updates the progress bar based on the provided statistics.
+ *
+ * @param {Object} stats - The statistics object containing counts for each status.
  */
 const updateProgressBar = (stats) => {
+    const progressBar = document.getElementById('progress-bar');
     const total = stats.queued + stats.built + stats.meta + stats.failed + stats.ignored + stats.skipped;
 
     if (total === 0) {
-        document.getElementById('progress-bar').style.display = 'none';
+        progressBar.style.display = 'none';
         return;
     }
 
-    document.getElementById('progress-bar').style.display = 'flex';
+    progressBar.style.display = 'flex';
 
-    const updateSection = (id, value) => {
+    const updateSection = (id) => {
         const element = document.getElementById(`progress-${id}`);
         if (element) {
-            const percentage = (value / total) * 200;
+            const percentage = (stats[id] / total) * 200;
             element.style.width = `${percentage}%`;
-        } else {
-            console.warn(`Progress bar element with id 'progress-${id}' not found.`);
         }
     };
 
-    ['built', 'meta', 'failed', 'ignored', 'skipped'].forEach(id => updateSection(id, stats[id]));
+    ['built', 'meta', 'failed', 'ignored', 'skipped'].forEach(updateSection);
 };
 
+
 /**
- * Creates a badge element for displaying statistics
- * @param {string} key - The key of the statistic
- * @param {number} value - The value of the statistic
- * @param {string} color - The color of the badge
- * @returns {string} HTML string for the badge
+ * Creates an HTML badge element for a given status key, value, and color.
+ *
+ * @param {string} key - The status key.
+ * @param {number} value - The value associated with the status key.
+ * @param {string} color - The color associated with the status key.
+ * @returns {string} - The HTML string for the badge element.
  */
-const createBadge = (key, value, color) => {
-    return `<span id="stats_${key}" class="px-2 py-1 rounded-full bg-${color}-100 text-${color}-800 text-xs font-medium cursor-pointer filterable" onclick="handleStatusFilter('${key}')">${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}</span>`;
-};
+const createBadge = (key, value, color) =>
+    `<span id="stats_${key}" class="px-2 py-1 rounded-full bg-${color}-100 text-${color}-800 text-xs font-medium cursor-pointer filterable" onclick="handleStatusFilter('${key}')">${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}</span>`;
 
 /**
- * Updates the statistics display in the UI
- * @param {Object} stats - Object containing build statistics
+ * Updates the display of statistics badges and additional stats.
+ *
+ * @param {Object} stats - The statistics object containing counts for each status and additional stats.
  */
 const updateStatsDisplay = (stats) => {
     const statsContainer = document.getElementById('stats');
@@ -129,55 +245,33 @@ const updateStatsDisplay = (stats) => {
         statsContainer.innerHTML += createBadge(key, stats[key], colors[index]);
     });
 
-    const additionalStats = ['remains', 'load', 'swapinfo', 'elapsed', 'pkghour', 'impulse'];
-    additionalStats.forEach(key => {
+    ['remains', 'load', 'swapinfo', 'elapsed', 'pkghour', 'impulse'].forEach(key => {
         additionalStatsContainer.innerHTML += `<div><span class="font-bold">${key.charAt(0).toUpperCase() + key.slice(1)}:</span> <span id="stats_${key}">${stats[key]}</span></div>`;
     });
 
-    // Update the selected stat if there is one
     if (state.currentStatus) {
         updateSelectedStat(state.currentStatus);
     }
 };
 
 /**
- * Updates the selected stat badge
- * @param {string} status - The selected status
+ * Updates the selected status badge to highlight the current status.
+ *
+ * @param {string} status - The current status to highlight.
  */
 const updateSelectedStat = (status) => {
-    const statBadges = document.querySelectorAll('.filterable');
-    statBadges.forEach(badge => {
+    document.querySelectorAll('.filterable').forEach(badge => {
         const key = badge.id.split('_')[1];
-        if (key === status) {
-            badge.classList.remove('bg-gray-100', 'bg-green-100', 'bg-purple-100', 'bg-red-100', 'bg-blue-100', 'bg-yellow-100');
-            badge.classList.add(`bg-${getStatColor(key)}-300`);
-        } else {
-            badge.classList.remove('bg-gray-300', 'bg-green-300', 'bg-purple-300', 'bg-red-300', 'bg-blue-300', 'bg-yellow-300');
-            badge.classList.add(`bg-${getStatColor(key)}-100`);
-        }
+        const colorClass = `bg-${getStatColor(key)}-${key === status ? '300' : '100'}`;
+        badge.classList.remove('bg-gray-100', 'bg-green-100', 'bg-purple-100', 'bg-red-100', 'bg-blue-100', 'bg-yellow-100', 'bg-gray-300', 'bg-green-300', 'bg-purple-300', 'bg-red-300', 'bg-blue-300', 'bg-yellow-300');
+        badge.classList.add(colorClass);
     });
 };
 
 /**
- * Gets the color for a specific stat
- * @param {string} key - The key of the statistic
- * @returns {string} The color associated with the stat
- */
-const getStatColor = (key) => {
-    const colors = {
-        queued: 'gray',
-        built: 'green',
-        meta: 'purple',
-        failed: 'red',
-        ignored: 'blue',
-        skipped: 'yellow'
-    };
-    return colors[key] || 'gray';
-};
-
-/**
- * Updates the builders table in the UI
- * @param {Array} builders - Array of builder objects
+ * Updates the builders table with the provided builders data.
+ *
+ * @param {Array} builders - The array of builder objects.
  */
 const updateBuildersTable = (builders) => {
     const tableBody = document.querySelector('#builders_body');
@@ -185,12 +279,19 @@ const updateBuildersTable = (builders) => {
 
     builders.forEach(builder => {
         const row = document.createElement('tr');
+        row.className = builder.phase === 'Idle' ? 'bg-gray-50' : 'bg-white';
         row.innerHTML = `
-            <td class="p-2 b${builder.ID}" onclick="filter('[${builder.ID}]')" title="Click to filter for work done by builder ${builder.ID}">${builder.ID}</td>
-            <td class="p-2">${builder.elapsed}</td>
-            <td class="p-2">${builder.phase}</td>
-            <td class="p-2">${builder.origin}</td>
-            <td class="p-2">${builder.lines}</td>
+            <td class="px-1 py-1 whitespace-nowrap">
+                <span class="px-2 inline-flex text-xs leading-5 font-bold">
+                    ${builder.ID}
+                </span>
+            </td>
+            <td class="px-1 py-1 whitespace-nowrap text-sm text-gray-500">${builder.elapsed}</td>
+            <td class="px-1 py-1 whitespace-nowrap">
+                ${getBuildPhaseBadge(builder.phase)}
+            </td>
+            <td class="px-1 py-1 whitespace-nowrap text-sm text-gray-500">${builder.origin || '-'}</td>
+            <td class="px-1 py-1 whitespace-nowrap text-sm text-gray-500">${builder.lines || '-'}</td>
         `;
         fragment.appendChild(row);
     });
@@ -200,46 +301,163 @@ const updateBuildersTable = (builders) => {
 };
 
 /**
- * Fetches data from the API with retry mechanism
- * @param {string} url - The URL to fetch from
- * @param {number} retries - Number of retry attempts
- * @returns {Promise} Resolved with JSON data or rejected with error
+ * Updates the sort icon based on the current sort state.
  */
-const fetchWithRetry = async (url, retries = 3) => {
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            console.error(`Attempt ${i + 1} failed: ${error}`);
-            if (i === retries - 1) throw error;
-        }
+const updateSortIcon = () => {
+    const sortIcon = document.getElementById('skipSortIcon');
+    sortIcon.textContent = state.sortColumn === 'skip' ? (state.sortDirection === 'asc' ? '▲' : '▼') : '⇅';
+};
+
+/**
+ * Updates the build report table with the provided filtered and sorted history data.
+ *
+ * @param {Array} filteredAndSortedHistory - The array of filtered and sorted history objects.
+ */
+const updateBuildReportTable = (filteredAndSortedHistory) => {
+    const reportBody = document.getElementById('report_body');
+    const fragment = document.createDocumentFragment();
+
+    filteredAndSortedHistory.forEach((item) => {
+        const row = document.createElement('tr');
+        row.className = getRowClass(item.result);
+        row.innerHTML = `
+            <td class="p-2">${item.originalIndex}</td>
+            <td class="p-2">${item.elapsed}</td>
+            <td class="p-2">[${item.ID}]</td>
+            <td class="p-2"><span class="inline-block px-2 py-1 text-xs font-bold text-white ${getResultClass(item.result)} rounded">${item.result}</span></td>
+            <td class="p-2">${portsMon(item.origin)}</td>
+            <td class="p-2 relative">${information(item.result, item.origin, item.info)}</td>
+            <td class="p-2">${skipInfo(item.result, item.info)}</td>
+            <td class="p-2">${item.duration}</td>
+        `;
+        fragment.appendChild(row);
+    });
+
+    reportBody.innerHTML = '';
+    reportBody.appendChild(fragment);
+
+    applyInfoTextListeners();
+
+    const searchValue = document.getElementById('search').value.toLowerCase();
+    filterRows(searchValue, state.currentStatus);
+};
+
+// Event Handlers
+
+/**
+ * Handles the search input event to filter rows based on the search value.
+ *
+ * @param {Event} e - The input event.
+ */
+const handleSearch = (e) => {
+    const searchValue = e.target.value.toLowerCase();
+    filterRows(searchValue, state.currentStatus);
+};
+
+/**
+ * Handles the status filter selection, updates the current status, filters and sorts the build history,
+ * updates the build report table, and updates the document title with the current status.
+ *
+ * @param {string} status - The selected status filter.
+ */
+const handleStatusFilter = (status) => {
+    state.currentStatus = status;
+    const buildHistory = state.history.flat();
+    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+    updateBuildReportTable(filteredAndSortedHistory);
+    updateSelectedStat(status);
+    switchTab('build-report');
+
+    const searchValue = document.getElementById('search').value.toLowerCase();
+    filterRows(searchValue, status);
+
+    const statBadge = document.getElementById(`stats_${status}`);
+    if (statBadge) {
+        const trimmedText = statBadge.textContent.split(':')[0].trim();
+        document.title = `${CONFIG.HTML_TITLE} - ${trimmedText}`;
     }
 };
 
 /**
- * Fetches the summary data from the API
- * @returns {Promise} Resolved with summary data
+ * Handles the sorting of the build history by the 'skip' column, toggling the sort direction.
  */
-const fetchSummary = () => fetchWithRetry(generateUrl('summary.json'));
+const handleSkipSort = () => {
+    if (state.sortColumn === 'skip') {
+        state.sortDirection = state.sortDirection === 'asc' ? 'desc' : null;
+        state.sortColumn = state.sortDirection ? 'skip' : null;
+    } else {
+        state.sortColumn = 'skip';
+        state.sortDirection = 'asc';
+    }
+
+    const buildHistory = state.history.flat();
+    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+    updateBuildReportTable(filteredAndSortedHistory);
+    updateSortIcon();
+};
+
+// Data Processing Functions
 
 /**
- * Fetches history data from the API
- * @param {number} kFiles - Number of history files to fetch
- * @returns {Promise} Resolved with an array of history data
+ * Filters rows based on the search value and status.
+ *
+ * @param {string} searchValue - The search value to filter rows.
+ * @param {string} status - The status to filter rows.
  */
-const fetchHistory = async (kFiles) => {
-    const fetchPromises = Array.from({ length: kFiles }, (_, i) => {
-        const fileName = String(i + 1).padStart(2, '0') + '_history.json';
-        return fetchWithRetry(generateUrl(fileName));
+const filterRows = (searchValue, status) => {
+    const rows = document.querySelectorAll('#report_body tr');
+
+    rows.forEach(row => {
+        const rowText = Array.from(row.cells)
+            .filter((_, index) => index !== 3)
+            .reduce((text, cell) => text + ' ' + cell.textContent.toLowerCase(), '');
+
+        const statusText = row.cells[3].textContent.trim().toLowerCase();
+
+        const matchesSearch = searchValue === '' || rowText.includes(searchValue);
+        const matchesStatus = status === 'queued' || statusText === status;
+
+        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
     });
-    return Promise.all(fetchPromises);
 };
 
 /**
- * Processes the summary data and updates the UI
- * @param {Object} data - The summary data object
+ * Sorts the build history by the 'skip' column.
+ *
+ * @param {Array} buildHistory - The build history array.
+ * @returns {Array} - The sorted build history array.
+ */
+const sortBySkip = (buildHistory) =>
+    buildHistory.sort((a, b) => {
+        const skipA = parseInt(skipInfo(a.result, a.info)) || 0;
+        const skipB = parseInt(skipInfo(b.result, b.info)) || 0;
+        return state.sortDirection === 'asc' ? skipA - skipB : skipB - skipA;
+    });
+
+/**
+ * Filters and sorts the build history based on the current status and sort settings.
+ *
+ * @param {Array} buildHistory - The build history array.
+ * @returns {Array} - The filtered and sorted build history array.
+ */
+const filterAndSortHistory = (buildHistory) => {
+    let indexedHistory = buildHistory.map((item, index) => ({...item, originalIndex: index + 1}));
+
+    if (state.currentStatus !== 'queued') {
+        indexedHistory = indexedHistory.filter(item => item.result.toLowerCase() === state.currentStatus);
+    }
+
+    if (state.sortColumn === 'skip' && state.sortDirection) {
+        indexedHistory = sortBySkip(indexedHistory);
+    }
+
+    return indexedHistory;
+};
+
+/**
+ * Processes the summary data and updates the application state and UI.
+ *
+ * @param {Object} data - The summary data object.
  */
 const processSummary = (data) => {
     state.kFiles = parseInt(data.kfiles);
@@ -271,8 +489,9 @@ const processSummary = (data) => {
 };
 
 /**
- * Processes the history data and updates the build report table
- * @param {Array} historyData - Array of history data objects
+ * Processes the history data and updates the application state and UI.
+ *
+ * @param {Array} historyData - The history data array.
  */
 const processHistory = (historyData) => {
     state.history = historyData;
@@ -280,200 +499,74 @@ const processHistory = (historyData) => {
     const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
     updateBuildReportTable(filteredAndSortedHistory);
 
-    // Update sort icon
     updateSortIcon();
 
-    // Apply current filter if any
     if (state.currentStatus !== 'queued') {
         filterRows(document.getElementById('search').value.toLowerCase(), state.currentStatus);
     }
 };
 
-/**
- * Handles the search input event
- * @param {Event} e - The input event object
- */
-const handleSearch = (e) => {
-    const searchValue = e.target.value.toLowerCase();
-    filterRows(searchValue, state.currentStatus);
-};
+// API Functions
 
 /**
- * Handles the status filter selection
- * @param {string} status - The selected status filter
+ * Fetches data from the given URL with retry logic.
+ *
+ * @param {string} url - The URL to fetch data from.
+ * @param {number} [retries=3] - The number of retry attempts.
+ * @returns {Promise<Object>} - The fetched data as a JSON object.
+ * @throws {Error} - Throws an error if all retry attempts fail.
  */
-const handleStatusFilter = (status) => {
-    state.currentStatus = status;
-    const buildHistory = state.history.flat();
-    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
-    updateBuildReportTable(filteredAndSortedHistory);
-    updateSelectedStat(status);
-    switchTab('build-report');
-
-    // Update the document title with the current stat
-    const statBadge = document.getElementById(`stats_${status}`);
-    if (statBadge) {
-        const trimmedText = statBadge.textContent.split(':')[0].trim();
-        document.title = `${CONFIG.HTML_TITLE} - ${trimmedText}`;
-    }
-};
-
-/**
- * Updates the sort icon in the Skip column header
- */
-function updateSortIcon() {
-    const sortIcon = document.getElementById('skipSortIcon');
-    if (state.sortColumn === 'skip') {
-        sortIcon.textContent = state.sortDirection === 'asc' ? '▲' : '▼';
-    } else {
-        sortIcon.textContent = '⇅';
-    }
-}
-
-/**
- * Filters the table rows based on search value and status
- * @param {string} searchValue - The search input value
- * @param {string} status - The selected status filter
- */
-const filterRows = (searchValue, status) => {
-    const rows = document.querySelectorAll('#report_body tr');
-
-    rows.forEach(row => {
-        const rowText = Array.from(row.cells)
-            .filter((_, index) => index !== 3)
-            .reduce((text, cell) => text + ' ' + cell.textContent.toLowerCase(), '');
-
-        const statusCell = row.cells[3];
-        const statusText = statusCell.textContent.trim().toLowerCase();
-
-        const matchesSearch = rowText.includes(searchValue);
-        const matchesStatus = status === 'queued' || statusText === status;
-
-        row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
-    });
-};
-
-/**
- * Sorts the build history based on the Skip column
- * @param {Array} buildHistory - The array of build history items
- * @returns {Array} Sorted build history array
- */
-function sortBySkip(buildHistory) {
-    return buildHistory.sort((a, b) => {
-        const skipA = parseInt(skipInfo(a.result, a.info)) || 0;
-        const skipB = parseInt(skipInfo(b.result, b.info)) || 0;
-
-        if (state.sortDirection === 'asc') {
-            return skipA - skipB;
-        } else {
-            return skipB - skipA;
+const fetchWithRetry = async (url, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            return await response.json();
+        } catch (error) {
+            console.error(`Attempt ${i + 1} failed: ${error}`);
+            if (i === retries - 1) throw error;
         }
-    });
-}
-
-/**
- * Handles the click event on the Skip column header
- */
-function handleSkipSort() {
-    if (state.sortColumn === 'skip') {
-        if (state.sortDirection === 'asc') {
-            state.sortDirection = 'desc';
-        } else if (state.sortDirection === 'desc') {
-            state.sortColumn = null;
-            state.sortDirection = null;
-        }
-    } else {
-        state.sortColumn = 'skip';
-        state.sortDirection = 'asc';
     }
-
-    const buildHistory = state.history.flat();
-    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
-    updateBuildReportTable(filteredAndSortedHistory);
-    updateSortIcon();
-}
+};
 
 /**
- * Filters and sorts the build history based on current state
- * @param {Array} buildHistory - The full build history array
- * @returns {Array} Filtered and sorted build history array
+ * Fetches the summary data.
+ *
+ * @returns {Promise<Object>} - The summary data as a JSON object.
  */
-/**
- * Filters and sorts the build history based on current state
- * @param {Array} buildHistory - The full build history array
- * @returns {Array} Filtered and sorted build history array
- */
-function filterAndSortHistory(buildHistory) {
-    // Add original index to each item
-    let indexedHistory = buildHistory.map((item, index) => ({...item, originalIndex: index + 1}));
-
-    // Filter by current status
-    let filteredHistory = indexedHistory;
-    if (state.currentStatus !== 'queued') {
-        filteredHistory = indexedHistory.filter(item => item.result.toLowerCase() === state.currentStatus);
-    }
-
-    // Sort if necessary
-    if (state.sortColumn === 'skip' && state.sortDirection) {
-        filteredHistory = sortBySkip(filteredHistory);
-    }
-
-    return filteredHistory;
-}
+const fetchSummary = () => fetchWithRetry(generateUrl('summary.json'));
 
 /**
- * Updates the build report table with filtered and sorted data
- * @param {Array} filteredAndSortedHistory - The filtered and sorted build history array
+ * Fetches the history data for the given number of files.
+ *
+ * @param {number} kFiles - The number of history files to fetch.
+ * @returns {Promise<Array>} - An array of history data objects.
  */
-function updateBuildReportTable(filteredAndSortedHistory) {
-    const reportBody = document.getElementById('report_body');
-    const fragment = document.createDocumentFragment();
-
-    filteredAndSortedHistory.forEach((item, index) => {
-        const row = document.createElement('tr');
-        row.className = `${getRowClass(item.result)}`;
-        row.innerHTML = `
-            <td class="p-2">${item.originalIndex}</td>
-            <td class="p-2">${item.elapsed}</td>
-            <td class="p-2">[${item.ID}]</td>
-            <td class="p-2"><span class="inline-block px-2 py-1 text-xs font-bold text-white ${getResultClass(item.result)} rounded">${item.result}</span></td>
-            <td class="p-2">${portsMon(item.origin)}</td>
-            <td class="p-2 relative">${information(item.result, item.origin, item.info)}</td>
-            <td class="p-2">${skipInfo(item.result, item.info)}</td>
-            <td class="p-2">${item.duration}</td>
-        `;
-        fragment.appendChild(row);
+const fetchHistory = async (kFiles) => {
+    const fetchPromises = Array.from({length: kFiles}, (_, i) => {
+        const fileName = String(i + 1).padStart(2, '0') + '_history.json';
+        return fetchWithRetry(generateUrl(fileName));
     });
+    return Promise.all(fetchPromises);
+};
 
-    reportBody.innerHTML = '';
-    reportBody.appendChild(fragment);
-
-    // Reapply event listeners for expanding/collapsing information
-    applyInfoTextListeners();
-}
+// Application Initialization
 
 /**
- * Applies event listeners to info-text elements for expanding/collapsing
- */
-function applyInfoTextListeners() {
-    document.querySelectorAll('.info-text').forEach(span => {
-        span.addEventListener('click', function() {
-            const fullText = this.getAttribute('data-full');
-            if (this.classList.contains('truncate')) {
-                this.textContent = fullText;
-                this.classList.remove('truncate');
-                this.classList.add('whitespace-normal', 'break-words');
-            } else {
-                this.textContent = truncateText(fullText, 255);
-                this.classList.add('truncate');
-                this.classList.remove('whitespace-normal', 'break-words');
-            }
-        });
-    });
-}
-
-/**
- * Initializes the application
+ * Initializes the application by fetching summary and history data, processing the data,
+ * and setting up event listeners and UI elements.
+ *
+ * - Fetches summary data and processes it.
+ * - Fetches history data and processes it.
+ * - Displays the build information and hides the loading indicator.
+ * - Sets up event listeners for search input and tab links.
+ * - Switches to the appropriate tab based on the active builder.
+ * - Polls for new summary data if a build is in progress.
+ * - Updates the document title with the current status.
+ *
+ * @async
+ * @function initializeApp
+ * @throws {Error} If initialization fails, an error message is displayed.
  */
 const initializeApp = async () => {
     try {
@@ -486,10 +579,8 @@ const initializeApp = async () => {
         document.getElementById('build_info').style.display = 'block';
         document.getElementById('loading_stats_build').style.display = 'none';
 
-        // Set up event listeners
         document.getElementById('search').addEventListener('input', handleSearch);
 
-        // Set up tab switching
         document.querySelectorAll('.tab-link').forEach(link => {
             link.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -498,24 +589,18 @@ const initializeApp = async () => {
         });
 
         const activeBuilder = summaryData.builders.find(builder => builder.phase !== "Idle");
-        if (activeBuilder) {
-            switchTab('progress-builders');
-        } else {
-            switchTab('build-report');
-        }
-        state.userSwitchedTab = false; // Reset after initial tab selection
-
-        // Set up polling
-        const pollData = async () => {
-            const newSummary = await fetchSummary();
-            processSummary(newSummary);
-
-            if (state.buildInProgress) {
-                setTimeout(pollData, CONFIG.POLL_INTERVAL);
-            }
-        };
+        switchTab(activeBuilder ? 'progress-builders' : 'build-report');
+        state.userSwitchedTab = false;
 
         if (state.buildInProgress) {
+            const pollData = async () => {
+                const newSummary = await fetchSummary();
+                processSummary(newSummary);
+
+                if (state.buildInProgress) {
+                    setTimeout(pollData, CONFIG.POLL_INTERVAL);
+                }
+            };
             await pollData();
         }
 
@@ -531,89 +616,19 @@ const initializeApp = async () => {
     }
 };
 
+// Event Listeners
 
-// Event listener for DOMContentLoaded
 document.addEventListener('DOMContentLoaded', initializeApp);
 
-// Helper functions
-/**
- * Gets the CSS class for a table row based on the build result
- * @param {string} result - The build result
- * @returns {string} The CSS class for the row
- */
-function getRowClass(result) {
-    const classes = {
-        built: 'bg-green-100',
-        failed: 'bg-red-100',
-        skipped: 'bg-yellow-100',
-        ignored: 'bg-blue-100',
-        meta: 'bg-purple-100'
-    };
-    return classes[result] || 'bg-gray-100';
-}
+// Additional Helper Functions
 
 /**
- * Gets the CSS class for the result badge based on the build result
- * @param {string} result - The build result
- * @returns {string} The CSS class for the badge
- */
-function getResultClass(result) {
-    const classes = {
-        built: 'bg-green-500',
-        failed: 'bg-red-500',
-        skipped: 'bg-yellow-500',
-        ignored: 'bg-blue-500',
-        meta: 'bg-purple-500'
-    };
-    return classes[result] || 'bg-gray-500';
-}
-
-/**
- * Formats the entry for display in the table
- * @param {string} entry - The entry name
- * @param {string} origin - The origin of the entry
- * @returns {string} Formatted HTML for the entry
- */
-function formatEntry(entry, origin) {
-    return `<span class="entry cursor-pointer text-blue-600 hover:underline" onclick="filter('${origin}')">${entry}</span>`;
-}
-
-/**
- * Generates a link to the FreshPorts page for the given origin
- * @param {string} origin - The origin of the port
- * @returns {string} Formatted HTML for the FreshPorts link
- */
-function portsMon(origin) {
-    const [category, name] = origin.split('/');
-    const [portName] = name.split('@');
-    return `<a class="text-blue-600 hover:underline" title="portsmon for ${origin}" href="https://www.freshports.org/${category}/${portName}">${origin}</a>`;
-}
-/**
- * Truncates text to a specified length
- * @param {string} text - The text to truncate
- * @param {number} maxLength - The maximum length of the truncated text
- * @returns {string} Truncated text with ellipsis if necessary
- */
-function truncateText(text, maxLength) {
-    if (text.length <= maxLength) return text;
-    return text.substr(0, maxLength) + '...';
-}
-
-/**
- * Checks if a string contains an href attribute
- * @param {string} text - The text to check
- * @returns {boolean} True if the text contains an href, false otherwise
- */
-function containsHref(text) {
-    return text.includes('href=');
-}
-
-/**
- * Generates information HTML based on the build result
- * @param {string} result - The build result
- * @param {string} origin - The origin of the port
- * @param {string} info - Additional information
- * @returns {string} Formatted HTML with build information
+ * Generates the information content based on the result, origin, and info.
+ *
+ * @param {string} result - The result status.
+ * @param {string} origin - The origin of the build.
+ * @param {string} info - Additional information about the build.
+ * @returns {string} - The formatted HTML string for the information content.
  */
 function information(result, origin, info) {
     let content;
@@ -648,10 +663,11 @@ function information(result, origin, info) {
 }
 
 /**
- * Generates skip information HTML based on the build result
- * @param {string} result - The build result
- * @param {string} info - Additional information
- * @returns {string} Formatted HTML with skip information
+ * Extracts skip information from the result and info.
+ *
+ * @param {string} result - The result status.
+ * @param {string} info - Additional information about the build.
+ * @returns {string} - The extracted skip information.
  */
 function skipInfo(result, info) {
     switch (result) {
@@ -667,21 +683,21 @@ function skipInfo(result, info) {
 }
 
 /**
- * Generates the URL for the log file
- * @param {string} origin - The origin of the port
- * @returns {string} URL of the log file
+ * Applies click event listeners to elements with the 'info-text' class to toggle text truncation.
  */
-function logFile(origin) {
-    const [category, name] = origin.split('/');
-    return generateUrl(`../${category}___${name}.log`);
-}
-
-/**
- * Global function used in onclick attributes to filter the table
- * @param {string} txt - The text to filter by
- */
-function filter(txt) {
-    const reportInput = document.querySelector('#report input');
-    reportInput.value = txt;
-    reportInput.dispatchEvent(new Event('input'));
+function applyInfoTextListeners() {
+    document.querySelectorAll('.info-text').forEach(span => {
+        span.addEventListener('click', function () {
+            const fullText = this.getAttribute('data-full');
+            if (this.classList.contains('truncate')) {
+                this.textContent = fullText;
+                this.classList.remove('truncate');
+                this.classList.add('whitespace-normal', 'break-words');
+            } else {
+                this.textContent = truncateText(fullText, 255);
+                this.classList.add('truncate');
+                this.classList.remove('whitespace-normal', 'break-words');
+            }
+        });
+    });
 }
