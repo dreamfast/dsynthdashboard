@@ -50,37 +50,44 @@
     <div id="build-report" class="tab-content">
         <div id="report" class="section bg-white rounded-lg shadow-md p-4">
             <div class="mb-4">
-                <label for="search">
-                    <input type="text" id="search" placeholder="Search..." class="w-full p-2 border rounded">
-                </label>
+                <label for="search"><input type="text" id="search" placeholder="Search..."
+                                           class="w-full p-2 border rounded"></label>
             </div>
             <div class="overflow-x-auto">
-                <table class="w-full table-fixed">
-                    <colgroup>
-                        <col class="w-[5%]">  <!-- No. -->
-                        <col class="w-[8%]">  <!-- Elapsed -->
-                        <col class="w-[5%]">  <!-- ID -->
-                        <col class="w-[8%]">  <!-- Result -->
-                        <col class="w-[15%]"> <!-- Origin -->
-                        <col class="w-[40%]"> <!-- Information -->
-                        <col class="w-[10%]"> <!-- Skip -->
-                        <col class="w-[9%]">  <!-- Duration -->
-                    </colgroup>
+                <table class="min-w-full">
                     <thead>
-                    <tr class="bg-gray-100 border-b border-gray-200">
-                        <th class="p-2 text-left">No.</th>
-                        <th class="p-2 text-left">Elapsed</th>
-                        <th class="p-2 text-left">ID</th>
-                        <th class="p-2 text-left">Result</th>
-                        <th class="p-2 text-left">Origin</th>
-                        <th class="p-2 text-left">Information</th>
-                        <th class="p-2 cursor-pointer" onclick="handleSkipSort()">
-                            Skip <span id="skipSortIcon" class="ml-1">⇅</span>
+                    <tr class="bg-gray-100">
+                        <th id="noHeader"
+                            class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer w-16">
+                            No. [<span id="noSortIcon">⇅</span>]
                         </th>
-                        <th class="p-2 text-left">Duration</th>
+                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                            Elapsed
+                        </th>
+                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">
+                            ID
+                        </th>
+                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                            Result
+                        </th>
+                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-32">
+                            Origin
+                        </th>
+                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Information
+                        </th>
+                        <th id="skipHeader"
+                            class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer w-24">
+                            Skip [<span id="skipSortIcon">⇅</span>]
+                        </th>
+                        <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">
+                            Duration
+                        </th>
                     </tr>
                     </thead>
-                    <tbody id="report_body" class="divide-y divide-gray-200">
+                    <tbody id="report_body">
+                    <!-- Report rows will be dynamically inserted here -->
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -89,30 +96,33 @@
     <div id="progress-builders" class="tab-content hidden">
         <div id="builders_zone" class="bg-white rounded-lg shadow-lg overflow-hidden">
             <div class="p-6">
-                <h2 class="text-2xl font-bold mb-4">Builders Status</h2>
+                <h2 id="builders-status" class="text-2xl font-bold mb-4">Builders Status</h2>
                 <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <table class="min-w-full">
+                        <thead>
+                        <tr class="bg-gray-100">
+                            <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 ID
                             </th>
-                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Duration
                             </th>
-                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Build Phase
                             </th>
-                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Origin
                             </th>
-                            <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                 Lines
+                            </th>
+                            <th class="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Log
                             </th>
                         </tr>
                         </thead>
-                        <tbody class="bg-white divide-y divide-gray-200" id="builders_body">
-                        <!-- Rows will be dynamically inserted here -->
+                        <tbody id="builders_body">
+                        <!-- Builder rows will be dynamically inserted here -->
                         </tbody>
                     </table>
                 </div>
@@ -122,8 +132,8 @@
 </main>
 
 <footer class="bg-white shadow-md mt-8">
-    <div class="container mx-auto px-4 py-4 text-center">
-        © 2024 DragonFlyBSD. All rights reserved.
+    <div class="container mx-auto px-4 py-4 text-center" id="footer">
+        <!-- Footer content will be dynamically inserted here -->
     </div>
 </footer>
 
