@@ -35,6 +35,7 @@ const CONFIG = {
 - `PATH`: Set this to the specific path for your API endpoints. If left empty, it defaults to 'dports/logs/Report'.
 - `POLL_INTERVAL`: The interval (in milliseconds) at which the dashboard will poll for updates.
 - `HTML_TITLE`: The title that will be displayed in the browser tab.
+- `FOOTER_TEXT`: The text that will be displayed in the footer of the dashboard. It will always be prepended with the current year and copyright symbol.
 
 ## Development
 
