@@ -4,6 +4,8 @@ A simple web application that provides insights into the current DSynth build st
 
 The original application was developed by John R. Marino <draco@marino.st>. This repository has modernized the JavaScript, removed any JavaScript dependencies in favor of vanilla JS, and uses TailwindCSS for a responsive and modern interface.
 
+You can see DsynthDashboard live at https://ironman.dragonflybsd.org/dports/logs/Report/
+
 To use on a live website, the following files are required:
 - `index.html`
 - `style.css`
@@ -36,7 +38,7 @@ const CONFIG = {
 
 ## Development
 
-A precompiled CSS file is provided. However, if you are developing with TailwindCSS, you will need to do the following to build the final `style.css` file or keep it up to date when developing.
+A precompiled CSS file is provided. However, if you are developing with TailwindCSS you will need to do the following to build the final `style.css` file or keep it up to date when developing.
 
 ### Prerequisites
 - Node.js
