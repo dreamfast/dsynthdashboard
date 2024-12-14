@@ -18,8 +18,8 @@
 
 // Config object for API settings
 const CONFIG = {
-    API_BASE_URL: '', // Will default to 'https://ironman.dragonflybsd.org' if empty
-    PORT: '', // Will be omitted from the URL if empty, defaulting to HTTPS
+    API_BASE_URL: 'http://localhost', // Will default to 'https://ironman.dragonflybsd.org' if empty
+    PORT: '8899', // Will be omitted from the URL if empty, defaulting to HTTPS
     PATH: '', // Will default to 'dports/logs/Report' if empty
     POLL_INTERVAL: 10000, // 10 seconds
     HTML_TITLE: 'DSynth Dashboard',
@@ -35,7 +35,9 @@ const state = {
     buildInProgress: false,
     sortDirection: null, // null for default, 'asc' for ascending, 'desc' for descending
     sortColumn: null,
-    userSwitchedTab: false
+    userSwitchedTab: false, // keep track if the user changed tabs to prevent the tab automatically changing during build
+    totalBuilds: 0,
+    remaining: 0
 };
 
 // Helper Functions
@@ -222,10 +224,25 @@ const updateProgressBar = (stats) => {
  * @param {string} key - The status key.
  * @param {number} value - The value associated with the status key.
  * @param {string} color - The color associated with the status key.
+ * @param clickable
  * @returns {string} - The HTML string for the badge element.
  */
-const createBadge = (key, value, color) =>
-    `<span id="stats_${key}" class="px-2 py-1 rounded-full bg-${color}-100 text-${color}-800 text-xs font-medium cursor-pointer filterable" onclick="handleStatusFilter('${key}')">${key.charAt(0).toUpperCase() + key.slice(1)}: ${value}</span>`;
+const createBadge = (key, value, color, clickable = true) => {
+    let displayText = key.charAt(0).toUpperCase() + key.slice(1);
+    let badgeKey = key;
+
+    // Special handling for queued to show as Total
+    if (key === 'queued') {
+        displayText = 'Total';
+        badgeKey = 'total'; // Use 'total' as the key for the click handler
+    }
+
+    const clickableClass = clickable ? 'cursor-pointer filterable' : '';
+    const onClick = clickable ? `onclick="handleStatusFilter('${badgeKey}')"` : '';
+
+    return `<span id="stats_${key}" class="px-2 py-1 rounded-full bg-${color}-100 text-${color}-800 text-xs font-medium ${clickableClass}" ${onClick}>${displayText}: ${value}</span>`;
+};
+
 
 /**
  * Updates the display of statistics badges and additional stats.
@@ -239,14 +256,24 @@ const updateStatsDisplay = (stats) => {
     statsContainer.innerHTML = '';
     additionalStatsContainer.innerHTML = '';
 
+    // Main stats - now queued displays as Total and is clickable
     const mainStats = ['queued', 'built', 'meta', 'failed', 'ignored', 'skipped'];
     const colors = ['gray', 'green', 'purple', 'red', 'blue', 'yellow'];
 
-    mainStats.forEach((key, index) => {
-        statsContainer.innerHTML += createBadge(key, stats[key], colors[index]);
+    // Add Total (queued) first - now clickable
+    statsContainer.innerHTML += createBadge('queued', stats.queued, colors[0], true);
+
+    // Add Remaining badge - still non-clickable
+    const remaining = stats.remains || 3;
+    statsContainer.innerHTML += createBadge('remaining', remaining, 'gray', false);
+
+    // Add other status badges
+    mainStats.slice(1).forEach((key, index) => {
+        statsContainer.innerHTML += createBadge(key, stats[key], colors[index + 1]);
     });
 
-    ['remains', 'load', 'swapinfo', 'elapsed', 'pkghour', 'impulse'].forEach(key => {
+    // Update additional stats
+    ['load', 'swapinfo', 'elapsed', 'pkghour', 'impulse'].forEach(key => {
         additionalStatsContainer.innerHTML += `<div><span class="font-bold">${key.charAt(0).toUpperCase() + key.slice(1)}:</span> <span id="stats_${key}">${stats[key]}</span></div>`;
     });
 
@@ -254,6 +281,7 @@ const updateStatsDisplay = (stats) => {
         updateSelectedStat(state.currentStatus);
     }
 };
+
 
 /**
  * Updates the selected status badge to highlight the current status.
@@ -263,11 +291,15 @@ const updateStatsDisplay = (stats) => {
 const updateSelectedStat = (status) => {
     document.querySelectorAll('.filterable').forEach(badge => {
         const key = badge.id.split('_')[1];
-        const colorClass = `bg-${getStatColor(key)}-${key === status ? '300' : '100'}`;
-        badge.classList.remove('bg-gray-100', 'bg-green-100', 'bg-purple-100', 'bg-red-100', 'bg-blue-100', 'bg-yellow-100', 'bg-gray-300', 'bg-green-300', 'bg-purple-300', 'bg-red-300', 'bg-blue-300', 'bg-yellow-300');
+        // Handle both 'queued' (Total) and regular status badges
+        const statusKey = key === 'queued' ? 'total' : key;
+        const colorClass = `bg-${getStatColor(key)}-${statusKey === status ? '300' : '100'}`;
+        badge.classList.remove('bg-gray-100', 'bg-green-100', 'bg-purple-100', 'bg-red-100', 'bg-blue-100', 'bg-yellow-100',
+            'bg-gray-300', 'bg-green-300', 'bg-purple-300', 'bg-red-300', 'bg-blue-300', 'bg-yellow-300');
         badge.classList.add(colorClass);
     });
 };
+
 
 /**
  * Updates the builders table with the provided builders data.
@@ -304,6 +336,7 @@ const updateBuildersTable = (builders) => {
     tableBody.appendChild(fragment);
 };
 
+
 /**
  * Updates the sort icon based on the current sort state.
  */
@@ -319,6 +352,7 @@ const updateSortIcon = () => {
             : '⇅';
     }
 };
+
 
 /**
  * Handles the sorting of the build history by the specified column.
@@ -344,6 +378,7 @@ const handleSort = (column) => {
     updateBuildReportTable(filteredAndSortedHistory);
     updateSortIcon();
 };
+
 
 /**
  * Updates the build report table with the provided filtered and sorted history data.
@@ -391,6 +426,7 @@ const handleSearch = (e) => {
     filterRows(searchValue, state.currentStatus);
 };
 
+
 /**
  * Handles the status filter selection, updates the current status, filters and sorts the build history,
  * updates the build report table, and updates the document title with the current status.
@@ -399,21 +435,32 @@ const handleSearch = (e) => {
  */
 const handleStatusFilter = (status) => {
     state.currentStatus = status;
-    const buildHistory = state.history.flat();
-    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
-    updateBuildReportTable(filteredAndSortedHistory);
+    const searchValue = document.getElementById('search').value.toLowerCase();
+
+    if (status === 'total') {
+        // Reset the current filtered view and show all history
+        const buildHistory = state.history.flat();
+        const indexedHistory = buildHistory.map((item, index) => ({...item, originalIndex: index + 1}));
+        updateBuildReportTable(indexedHistory);
+
+        // Apply only search filter if one exists
+        if (searchValue) {
+            filterRows(searchValue, null);
+        }
+
+        document.title = `${CONFIG.HTML_TITLE} - Total`;
+    } else {
+        // Existing filter logic for other statuses
+        const buildHistory = state.history.flat();
+        const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+        updateBuildReportTable(filteredAndSortedHistory);
+        filterRows(searchValue, status);
+    }
+
     updateSelectedStat(status);
     switchTab('build-report');
-
-    const searchValue = document.getElementById('search').value.toLowerCase();
-    filterRows(searchValue, status);
-
-    const statBadge = document.getElementById(`stats_${status}`);
-    if (statBadge) {
-        const trimmedText = statBadge.textContent.split(':')[0].trim();
-        document.title = `${CONFIG.HTML_TITLE} - ${trimmedText}`;
-    }
 };
+
 
 // Data Processing Functions
 
@@ -434,7 +481,7 @@ const filterRows = (searchValue, status) => {
         const statusText = row.cells[3].textContent.trim().toLowerCase();
 
         const matchesSearch = searchValue === '' || rowText.includes(searchValue);
-        const matchesStatus = status === 'queued' || statusText === status;
+        const matchesStatus = !status || status === 'total' || statusText === status;
 
         row.style.display = (matchesSearch && matchesStatus) ? '' : 'none';
     });
@@ -475,7 +522,7 @@ const sortByColumn = (buildHistory, column) => {
 const filterAndSortHistory = (buildHistory) => {
     let indexedHistory = buildHistory.map((item, index) => ({...item, originalIndex: index + 1}));
 
-    if (state.currentStatus !== 'queued') {
+    if (state.currentStatus && state.currentStatus !== 'total') {
         indexedHistory = indexedHistory.filter(item => item.result.toLowerCase() === state.currentStatus);
     }
 
@@ -485,6 +532,7 @@ const filterAndSortHistory = (buildHistory) => {
 
     return indexedHistory;
 };
+
 
 /**
  * Processes the summary data and updates the application state and UI.
@@ -519,6 +567,7 @@ const processSummary = (data) => {
         }
     }
 };
+
 
 /**
  * Processes the history data and updates the application state and UI.
@@ -561,12 +610,14 @@ const fetchWithRetry = async (url, retries = 3) => {
     }
 };
 
+
 /**
  * Fetches the summary data.
  *
  * @returns {Promise<Object>} - The summary data as a JSON object.
  */
 const fetchSummary = () => fetchWithRetry(generateUrl('summary.json'));
+
 
 /**
  * Fetches the history data for the given number of files.
@@ -719,6 +770,7 @@ function skipInfo(result, info) {
     }
 }
 
+
 /**
  * Applies click event listeners to elements with the 'info-text' class to toggle text truncation.
  */
@@ -738,6 +790,7 @@ function applyInfoTextListeners() {
         });
     });
 }
+
 
 /**
  * Updates the footer text with the current year and configured footer text.
