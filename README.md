@@ -39,12 +39,16 @@ const CONFIG = {
 - `POLL_INTERVAL`: The interval (in milliseconds) at which the dashboard will poll for updates.
 - `HTML_TITLE`: The title that will be displayed in the browser tab.
 - `FOOTER_TEXT`: The text that will be displayed in the footer of the dashboard. It will always be prepended with the current year and copyright symbol.
+- `SHOW_LADING_WHEN_ROWS_EXCEED`: Number of table rows above which the loading spinner will be shown during sorting/filtering operations (default: 2500).
+- `DEBOUNCE_DELAY`: Time in milliseconds to wait after the last search input before filtering results (default: 300ms).
+- `RETRY_ATTEMPTS`: Number of retry attempts for fetching JSON data before giving up (default: 3).
 
 ## Development
 
 A precompiled CSS file is provided. However, if you are developing with TailwindCSS, you'll need to follow these steps to build and maintain the `style.css` file.
 
 ### Prerequisites
+
 - Node.js
 - npm
 
