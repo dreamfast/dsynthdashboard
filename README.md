@@ -19,9 +19,9 @@ The DSynth Dashboard has configurable options at the top of `synth.js`.
 
 ```javascript
 const CONFIG = {
-   API_BASE_URL: '', // Base URL for the API. If empty, defaults to 'https://ironman.dragonflybsd.org'
-   PORT: '', // Port number for the API. If empty, it will be omitted from the URL, defaulting to HTTPS
-   PATH: '', // Path for the API. If empty, defaults to 'dports/logs/Report'
+   API_BASE_URL: '', // Base URL for the API. If empty, URLs will be loaded relatively
+   PORT: '', // Port number for the API. Only used if API_BASE_URL is set
+   PATH: '', // Path for the API. Only used if API_BASE_URL is set
    POLL_INTERVAL: 10000, // Polling interval in milliseconds (10 seconds)
    HTML_TITLE: 'DSynth Dashboard', // Title for the HTML page
    FOOTER_TEXT: 'DragonFlyBSD. All Rights Reserved.', // Customise the footer text
@@ -33,15 +33,29 @@ const CONFIG = {
 
 ### Configuration Details
 
-- `API_BASE_URL`: Set this to your API's base URL. If left empty, it will default to 'https://ironman.dragonflybsd.org'.
-- `PORT`: Specify the port number if your API uses a non-standard port. If left empty, the port will be omitted from the URL, effectively defaulting to the standard HTTPS port (443).
-- `PATH`: Set this to the specific path for your API endpoints. If left empty, it defaults to 'dports/logs/Report'.
+- `API_BASE_URL`: If left empty, all URLs will be loaded relative to the current directory. Set this only if you need to fetch data from a different domain or path.
+- `PORT`: Specify a port number if needed. Only used when `API_BASE_URL` is set. Ignored for relative URLs.
+- `PATH`: Set a specific path for API endpoints. Only used when `API_BASE_URL` is set. Ignored for relative URLs.
 - `POLL_INTERVAL`: The interval (in milliseconds) at which the dashboard will poll for updates.
 - `HTML_TITLE`: The title that will be displayed in the browser tab.
 - `FOOTER_TEXT`: The text that will be displayed in the footer of the dashboard. It will always be prepended with the current year and copyright symbol.
-- `SHOW_LADING_WHEN_ROWS_EXCEED`: Number of table rows above which the loading spinner will be shown during sorting/filtering operations (default: 2500).
+- `SHOW_LOADING_WHEN_ROWS_EXCEED`: Number of table rows above which the loading spinner will be shown during sorting/filtering operations (default: 2500).
 - `DEBOUNCE_DELAY`: Time in milliseconds to wait after the last search input before filtering results (default: 300ms).
 - `RETRY_ATTEMPTS`: Number of retry attempts for fetching JSON data before giving up (default: 3).
+
+### URL Handling
+
+The dashboard is designed to work with zero configuration by using relative URLs. This means:
+
+1. **Default Setup (Recommended)**
+   - Leave `API_BASE_URL`, `PORT`, and `PATH` empty
+   - JSON files should be in the same directory as the dashboard
+   - The app will work automatically without any configuration
+
+2. **Custom API Location**
+   - Set `API_BASE_URL` if you need to fetch data from a different location
+   - Optionally set `PORT` and `PATH` to construct the full URL
+   - Example: `API_BASE_URL: 'https://localhost', PORT: '8080', PATH: 'data'` will fetch from `https://localhost:8080/data/`
 
 ## Development
 

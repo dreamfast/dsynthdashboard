@@ -18,7 +18,7 @@
 
 // Config object for API settings
 const CONFIG = {
-    API_BASE_URL: '', // Will default to 'https://ironman.dragonflybsd.org' if empty
+    API_BASE_URL: '', // Will default to the url it's hosted on if empty
     PORT: '', // Will be omitted from the URL if empty, defaulting to HTTPS
     PATH: '', // Will default to 'dports/logs/Report' if empty
     POLL_INTERVAL: 10000, // 10 seconds
@@ -257,11 +257,17 @@ const createPhaseFilter = (phases, counts, selectedPhase) => {
  * @returns {string} - The fully constructed URL with the timestamp query parameter.
  */
 const generateUrl = (endpoint = '') => {
-    const baseUrl = CONFIG.API_BASE_URL || 'https://ironman.dragonflybsd.org';
-    const port = CONFIG.PORT ? `:${CONFIG.PORT}` : '';
-    const path = CONFIG.PATH || 'dports/logs/Report';
-    const url = `${baseUrl}${port}/${path}/${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
-    return `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+    // If we have a configured API URL, use it fully qualified
+    if (CONFIG.API_BASE_URL) {
+        const baseUrl = CONFIG.API_BASE_URL;
+        const port = CONFIG.PORT ? `:${CONFIG.PORT}` : '';
+        const path = CONFIG.PATH || 'dports/logs/Report';
+        const url = `${baseUrl}${port}/${path}/${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
+        return `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
+    }
+
+    // Otherwise, just use the endpoint directly as a relative path
+    return `${endpoint}${endpoint.includes('?') ? '&' : '?'}t=${Date.now()}`;
 };
 
 
