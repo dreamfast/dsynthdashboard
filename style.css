@@ -588,6 +588,10 @@ video {
   }
 }
 
+.visible {
+  visibility: visible;
+}
+
 .fixed {
   position: fixed;
 }
@@ -749,16 +753,8 @@ video {
   white-space: nowrap;
 }
 
-.whitespace-normal {
-  white-space: normal;
-}
-
 .whitespace-nowrap {
   white-space: nowrap;
-}
-
-.break-words {
-  overflow-wrap: break-word;
 }
 
 .rounded {
@@ -1103,6 +1099,14 @@ video {
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 
+.transition {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, -webkit-backdrop-filter;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter, -webkit-backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
 .transition-all {
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -1115,6 +1119,20 @@ video {
 
 .ease-in-out {
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.info-text.expanded {
+  white-space: normal !important;
+  word-wrap: break-word !important;
+  max-width: 100% !important;
+}
+
+.hover\:whitespace-normal:hover {
+  white-space: normal;
+}
+
+.hover\:break-words:hover {
+  overflow-wrap: break-word;
 }
 
 .hover\:border-gray-300:hover {

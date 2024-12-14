@@ -19,12 +19,15 @@ The DSynth Dashboard has configurable options at the top of `synth.js`.
 
 ```javascript
 const CONFIG = {
-    API_BASE_URL: '', // Base URL for the API. If empty, defaults to 'https://ironman.dragonflybsd.org'
-    PORT: '', // Port number for the API. If empty, it will be omitted from the URL, defaulting to HTTPS
-    PATH: '', // Path for the API. If empty, defaults to 'dports/logs/Report'
-    POLL_INTERVAL: 10000, // Polling interval in milliseconds (10 seconds)
-    HTML_TITLE: 'DSynth Dashboard', // Title for the HTML page
-    FOOTER_TEXT: 'DragonFlyBSD. All Rights Reserved.' // Customise the footer text
+   API_BASE_URL: '', // Base URL for the API. If empty, defaults to 'https://ironman.dragonflybsd.org'
+   PORT: '', // Port number for the API. If empty, it will be omitted from the URL, defaulting to HTTPS
+   PATH: '', // Path for the API. If empty, defaults to 'dports/logs/Report'
+   POLL_INTERVAL: 10000, // Polling interval in milliseconds (10 seconds)
+   HTML_TITLE: 'DSynth Dashboard', // Title for the HTML page
+   FOOTER_TEXT: 'DragonFlyBSD. All Rights Reserved.', // Customise the footer text
+   SHOW_LOADING_WHEN_ROWS_EXCEED: 2500, // Show loading spinner when rows exceed this number
+   DEBOUNCE_DELAY: 300, // Used with search input to debounce input
+   RETRY_ATTEMPTS: 3, // Number of retry attempts before giving up getting json data
 };
 ```
 
