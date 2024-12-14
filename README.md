@@ -39,26 +39,36 @@ const CONFIG = {
 
 ## Development
 
-A precompiled CSS file is provided. However, if you are developing with TailwindCSS you will need to do the following to build the final `style.css` file or keep it up to date when developing.
+A precompiled CSS file is provided. However, if you are developing with TailwindCSS, you'll need to follow these steps to build and maintain the `style.css` file.
 
 ### Prerequisites
 - Node.js
 - npm
-- npx
 
 ### Installation
-1. Install the required dependencies from `package.json`:
+
+1. Install the required dependencies:
     ```sh
     npm install
     ```
 
-### Building the Tailwind CSS File
-1. Run the following command to build the `tailwindcss` `style.css` file:
+### Building the CSS
+
+There are several npm commands available for working with the Tailwind CSS:
+
+1. One-time build:
     ```sh
-    npx tailwindcss -i ./input.css -o ./style.css --watch --minify
+    npm run build
     ```
 
-This command will watch for changes in the `index.html` and `synth.js` files and output the compiled CSS to `style.css`. Remove the `--watch` argument if you just want to compile the file once.
+2. Development mode with auto-rebuild on changes:
+    ```sh
+    npm run dev
+    ```
+
+The build process watches for changes in the `index.html` and `synth.js` files and outputs the compiled CSS to `style.css`. The CSS is automatically minified in production builds.
+
+The source CSS file with Tailwind directives is located at `src/input.css`.
 
 ## License
 

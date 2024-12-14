@@ -1,4 +1,13 @@
 {
+  "name": "dsynth-dashboard",
+  "version": "1.0.0",
+  "description": "DragonFlyBSD DSynth Dashboard",
+  "scripts": {
+    "build:css": "tailwindcss -i ./input.css -o ./style.css",
+    "watch:css": "tailwindcss -i ./input.css -o ./style.css --watch",
+    "build": "npm run build:css",
+    "dev": "npm run watch:css"
+  },
   "devDependencies": {
     "tailwindcss": "^3.4.13"
   }
