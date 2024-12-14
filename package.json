@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "DragonFlyBSD DSynth Dashboard",
   "scripts": {
-    "build:css": "tailwindcss -i ./input.css -o ./style.css",
+    "build:css": "tailwindcss -i ./input.css -o ./style.css --minify",
     "watch:css": "tailwindcss -i ./input.css -o ./style.css --watch",
     "build": "npm run build:css",
     "dev": "npm run watch:css"
