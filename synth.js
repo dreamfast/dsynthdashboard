@@ -37,10 +37,84 @@ const state = {
     sortColumn: null,
     userSwitchedTab: false, // keep track if the user changed tabs to prevent the tab automatically changing during build
     totalBuilds: 0,
-    remaining: 0
+    remaining: 0,
+    selectedBuildPhase: null,
+    buildPhases: new Map() // Track counts of each phase
 };
 
 // Helper Functions
+
+/**
+ * Handles the selection of a build phase, updates the state, filters and sorts the build history,
+ * and updates the build report table.
+ *
+ * @param {string|null} phase - The selected build phase. If null, all phases are selected.
+ */
+const handlePhaseSelect = (phase) => {
+    state.selectedBuildPhase = phase;
+    const buildHistory = state.history.flat();
+    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
+    updateBuildReportTable(filteredAndSortedHistory);
+};
+
+
+/**
+ * Extracts the build phases from the build history and counts the occurrences of each phase.
+ *
+ * @param {Array} buildHistory - The array of build history objects.
+ * @returns {Map<string, number>} - A map of build phases and their counts.
+ */
+const extractBuildPhases = (buildHistory) => {
+    const phases = new Map();
+
+    buildHistory.forEach(item => {
+        if (item.result === 'failed') {
+            const phase = item.info.split(':')[0];
+            phases.set(phase, (phases.get(phase) || 0) + 1);
+        }
+    });
+
+    return phases;
+};
+
+/**
+ * Creates the HTML for the phase filter buttons based on the provided phases, counts, and selected phase.
+ *
+ * @param {Map<string, number>} phases - A map of build phases and their counts.
+ * @param {Map<string, number>} counts - A map of build phases and their counts.
+ * @param {string|null} selectedPhase - The currently selected build phase. If null, all phases are selected.
+ * @returns {string} - The HTML string for the phase filter buttons.
+ */
+const createPhaseFilter = (phases, counts, selectedPhase) => {
+    const buttons = Array.from(phases.keys()).map(phase => `
+        <button
+            class="px-2 py-1 text-xs font-medium rounded-full ${selectedPhase === phase
+        ? 'bg-red-200 text-red-800'
+        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}"
+            onclick="handlePhaseSelect('${phase}')"
+        >
+            ${phase} (${counts.get(phase) || 0})
+        </button>
+    `).join('');
+
+    return `
+        <div class="flex flex-wrap gap-2 p-4 bg-white rounded-lg shadow-sm mb-4">
+            <span class="text-sm font-medium text-gray-700">Filter failed builds by phase:</span>
+            <div class="flex gap-2">
+                <button
+                    class="px-2 py-1 text-xs font-medium rounded-full ${!selectedPhase
+        ? 'bg-red-200 text-red-800'
+        : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}"
+                    onclick="handlePhaseSelect(null)"
+                >
+                    All Failed
+                </button>
+                ${buttons}
+            </div>
+        </div>
+    `;
+};
+
 
 /**
  * Generates a URL with the given endpoint, including the base URL, port, and path from the CONFIG object.
@@ -56,6 +130,7 @@ const generateUrl = (endpoint = '') => {
     const url = `${baseUrl}${port}/${path}/${endpoint}`.replace(/([^:]\/)\/+/g, "$1");
     return `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
 };
+
 
 /**
  * Generates an HTML badge element for a given build phase.
@@ -77,6 +152,7 @@ const getBuildPhaseBadge = (phase) => {
     </span>`;
 };
 
+
 /**
  * Returns the color associated with a given status key.
  *
@@ -95,6 +171,7 @@ const getStatColor = (key) => {
     return colors[key] || 'gray';
 };
 
+
 /**
  * Returns the CSS class for a table row based on the result status.
  *
@@ -111,6 +188,7 @@ const getRowClass = (result) => {
     };
     return classes[result] || 'bg-gray-100';
 };
+
 
 /**
  * Returns the CSS class for a result badge based on the result status.
@@ -129,6 +207,7 @@ const getResultClass = (result) => {
     return classes[result] || 'bg-gray-500';
 };
 
+
 /**
  * Generates a hyperlink to the FreshPorts page for a given origin.
  *
@@ -140,6 +219,7 @@ const portsMon = (origin) => {
     return `<a class="text-blue-600 hover:underline" title="portsmon for ${origin}" href="https://www.freshports.org/${category}/${portName.split('@')[0]}">${origin}</a>`;
 };
 
+
 /**
  * Truncates the given text to the specified maximum length, appending '...' if truncated.
  *
@@ -150,6 +230,7 @@ const portsMon = (origin) => {
 const truncateText = (text, maxLength) =>
     text.length <= maxLength ? text : text.substr(0, maxLength) + '...';
 
+
 /**
  * Checks if the given text contains 'href=' attribute.
  *
@@ -157,6 +238,7 @@ const truncateText = (text, maxLength) =>
  * @returns {boolean} - True if the text contains 'href=', false otherwise.
  */
 const containsHref = (text) => text.includes('href=');
+
 
 /**
  * Generates a URL for the log file of the given origin.
@@ -184,11 +266,14 @@ const switchTab = (tabName) => {
         link.classList.remove('border-blue-500', 'text-blue-600');
         link.classList.add('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
     });
+
     const activeLink = document.querySelector(`.tab-link[data-tab="${tabName}"]`);
     activeLink.classList.add('border-blue-500', 'text-blue-600');
     activeLink.classList.remove('text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+
     state.userSwitchedTab = true;
 };
+
 
 /**
  * Updates the progress bar based on the provided statistics.
@@ -387,6 +472,20 @@ const handleSort = (column) => {
  */
 const updateBuildReportTable = (filteredAndSortedHistory) => {
     const reportBody = document.getElementById('report_body');
+    const phaseFilterContainer = document.getElementById('phase-filter');
+
+    // Show/hide and update phase filter for failed builds
+    if (state.currentStatus === 'failed') {
+        const phases = state.buildPhases;
+        const filterHtml = createPhaseFilter(phases, phases, state.selectedBuildPhase);
+        phaseFilterContainer.innerHTML = filterHtml;
+        phaseFilterContainer.style.display = 'block';
+    } else {
+        phaseFilterContainer.style.display = 'none';
+        phaseFilterContainer.innerHTML = '';
+    }
+
+    // Update table rows
     const fragment = document.createDocumentFragment();
 
     filteredAndSortedHistory.forEach((item) => {
@@ -407,11 +506,6 @@ const updateBuildReportTable = (filteredAndSortedHistory) => {
 
     reportBody.innerHTML = '';
     reportBody.appendChild(fragment);
-
-    applyInfoTextListeners();
-
-    const searchValue = document.getElementById('search').value.toLowerCase();
-    filterRows(searchValue, state.currentStatus);
 };
 
 // Event Handlers
@@ -435,7 +529,7 @@ const handleSearch = (e) => {
  */
 const handleStatusFilter = (status) => {
     state.currentStatus = status;
-    const searchValue = document.getElementById('search').value.toLowerCase();
+    state.selectedBuildPhase = null; // Reset phase filter when changing status
 
     if (status === 'total') {
         // Reset the current filtered view and show all history
@@ -444,6 +538,7 @@ const handleStatusFilter = (status) => {
         updateBuildReportTable(indexedHistory);
 
         // Apply only search filter if one exists
+        const searchValue = document.getElementById('search').value.toLowerCase();
         if (searchValue) {
             filterRows(searchValue, null);
         }
@@ -454,6 +549,8 @@ const handleStatusFilter = (status) => {
         const buildHistory = state.history.flat();
         const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
         updateBuildReportTable(filteredAndSortedHistory);
+
+        const searchValue = document.getElementById('search').value.toLowerCase();
         filterRows(searchValue, status);
     }
 
@@ -522,8 +619,22 @@ const sortByColumn = (buildHistory, column) => {
 const filterAndSortHistory = (buildHistory) => {
     let indexedHistory = buildHistory.map((item, index) => ({...item, originalIndex: index + 1}));
 
+    // Update build phases when processing history
+    if (state.currentStatus === 'failed') {
+        state.buildPhases = extractBuildPhases(indexedHistory);
+    }
+
+    // Filter by status
     if (state.currentStatus && state.currentStatus !== 'total') {
         indexedHistory = indexedHistory.filter(item => item.result.toLowerCase() === state.currentStatus);
+
+        // Additional phase filtering for failed builds
+        if (state.currentStatus === 'failed' && state.selectedBuildPhase) {
+            indexedHistory = indexedHistory.filter(item => {
+                const phase = item.info.split(':')[0];
+                return phase === state.selectedBuildPhase;
+            });
+        }
     }
 
     if ((state.sortColumn === 'skip' || state.sortColumn === 'no') && state.sortDirection) {
@@ -532,6 +643,7 @@ const filterAndSortHistory = (buildHistory) => {
 
     return indexedHistory;
 };
+
 
 
 /**
@@ -577,15 +689,15 @@ const processSummary = (data) => {
 const processHistory = (historyData) => {
     state.history = historyData;
     const buildHistory = historyData.flat();
-    const filteredAndSortedHistory = filterAndSortHistory(buildHistory);
-    updateBuildReportTable(filteredAndSortedHistory);
 
-    updateSortIcon();
+    // Set initial table data with all entries
+    const indexedHistory = buildHistory.map((item, index) => ({...item, originalIndex: index + 1}));
+    updateBuildReportTable(indexedHistory);
 
-    if (state.currentStatus !== 'queued') {
-        filterRows(document.getElementById('search').value.toLowerCase(), state.currentStatus);
-    }
+    // Reset tab switch to default behavior
+    state.userSwitchedTab = false;
 };
+
 
 // API Functions
 
