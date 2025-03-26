@@ -4,7 +4,7 @@ A simple web application that provides insights into the current DSynth build st
 
 The original application was developed by John R. Marino <draco@marino.st>. This repository has modernized the JavaScript, removed any JavaScript dependencies in favor of vanilla JS, and uses TailwindCSS for a responsive and modern interface.
 
-You can see DsynthDashboard live at https://ironman.dragonflybsd.org/dports/logs/Report/
+You can see DsynthDashboard live at https://ironman.dragonflybsd.org/dports/logs/Report/ - although sometimes the older version will revert until they get around to updating it again.
 
 To use on a live website, the following files are required:
 - `index.html`
